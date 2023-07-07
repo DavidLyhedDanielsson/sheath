@@ -1,4 +1,6 @@
-﻿using static SDL2.SDL;
+﻿using ConsoleApp1.Asset;
+using ConsoleApp1.Graphics;
+using static SDL2.SDL;
 using Vortice.Direct3D12;
 
 namespace ConsoleApp1
@@ -39,32 +41,51 @@ namespace ConsoleApp1
                 , settings.Window.Height
                 , 0);
 
-            var scene = new Scene();
-            scene.Import();
+            AssetCatalogue assetCatalogue = new();
+            AssetLoader.Import(assetCatalogue, "Map/Main.gltf");
 
-            SDL_SysWMinfo wmInfo = new SDL_SysWMinfo();
+            SDL_SysWMinfo wmInfo = new();
             SDL_VERSION(out wmInfo.version);
             SDL_GetWindowWMInfo(sdlWindow, ref wmInfo);
 
             var hRef = wmInfo.info.win.window;
 
-            var dxResult = DirectX.Create(settings, hRef).LogIfFailed();
-            if (dxResult.IsFailed)
+            var graphicsStateResult = GraphicsState.Create(settings, hRef).LogIfFailed();
+            if (graphicsStateResult.IsFailed)
                 return -2;
-            var dx = dxResult.Value;
+            GraphicsState graphicsState = graphicsStateResult.Value;
 
-            var psoResult = PipelineStateObject.Create(settings, dx.device, dx.rootSignature).LogIfFailed();
+            var psoResult = PSOConfig.Create(settings, graphicsState.device, graphicsState.rootSignature).LogIfFailed();
             if (psoResult.IsFailed)
                 return -3;
-            var pipelineStateObject = psoResult.Value;
+            PSOConfig psoConfig = psoResult.Value;
 
-            scene.WaitUntilDoneLoading();
+            GraphicsBuilder.VertexIndexBuilder viBuilder = GraphicsBuilder.CreateVertexIndexBuffers(graphicsState, psoConfig);
+            assetCatalogue.ForEachMesh(mesh => viBuilder.AddMesh(mesh));
+            viBuilder.Build();
+
+            GraphicsBuilder.TextureBuilder textureBuilder = GraphicsBuilder.CreateTextures(graphicsState);
+            GraphicsBuilder.SurfaceBuilder surfaceBuilder = GraphicsBuilder.CreateSurfaces(graphicsState);
+            assetCatalogue.ForEachMaterial(material =>
+            {
+                Texture? texture = assetCatalogue.GetTexture(material.Diffuse.FilePath);
+
+                if (texture != null)
+                    textureBuilder.AddTexture(texture);
+
+                surfaceBuilder.AddMaterial(material);
+            });
+            textureBuilder.Build();
+            surfaceBuilder.Build();
+
+            graphicsState.commandList.Close();
+            graphicsState.commandQueue.ExecuteCommandList(graphicsState.commandList);
+            graphicsState.WaitUntilIdle();
 
             var running = true;
             while (running)
             {
-                SDL_Event ev;
-                while (SDL_PollEvent(out ev) != 0)
+                while (SDL_PollEvent(out SDL_Event ev) != 0)
                 {
                     switch (ev.type)
                     {
@@ -78,31 +99,31 @@ namespace ConsoleApp1
                     }
                 }
 
-                var commandList = dx.commandList;
-                dx.commandAllocator.Reset();
-                commandList.Reset(dx.commandAllocator, pipelineStateObject.NdcTriangle);
+                var commandList = graphicsState.commandList;
+                graphicsState.commandAllocator.Reset();
+                commandList.Reset(graphicsState.commandAllocator, psoConfig.NdcTriangle);
 
-                var frameIndex = (int)(dx.frameCount % 3);
+                var frameIndex = (int)(graphicsState.frameCount % 3);
 
-                commandList.ResourceBarrier(new ResourceBarrier(new ResourceTransitionBarrier(dx.renderTargets[frameIndex], ResourceStates.Common, ResourceStates.RenderTarget)));
+                commandList.ResourceBarrier(new ResourceBarrier(new ResourceTransitionBarrier(graphicsState.renderTargets[frameIndex], ResourceStates.Common, ResourceStates.RenderTarget)));
 
-                commandList.ClearRenderTargetView(dx.descriptorHeap.GetCPUDescriptorHandleForHeapStart() + frameIndex * dx.rtvDescriptorSize, Vortice.Mathematics.Colors.LemonChiffon);
-                commandList.OMSetRenderTargets(dx.descriptorHeap.GetCPUDescriptorHandleForHeapStart() + frameIndex * dx.rtvDescriptorSize);
+                commandList.ClearRenderTargetView(graphicsState.rtvDescriptorHeap.GetCPUDescriptorHandleForHeapStart() + frameIndex * graphicsState.rtvDescriptorSize, Vortice.Mathematics.Colors.LemonChiffon);
+                commandList.OMSetRenderTargets(graphicsState.rtvDescriptorHeap.GetCPUDescriptorHandleForHeapStart() + frameIndex * graphicsState.rtvDescriptorSize);
                 commandList.RSSetViewport(0.0f, 0.0f, settings.Window.Width, settings.Window.Height);
                 commandList.RSSetScissorRect(settings.Window.Width, settings.Window.Height);
                 commandList.IASetPrimitiveTopology(Vortice.Direct3D.PrimitiveTopology.TriangleList);
-                commandList.SetGraphicsRootSignature(dx.rootSignature);
+                commandList.SetGraphicsRootSignature(graphicsState.rootSignature);
 
                 commandList.DrawInstanced(3, 1, 0, 0);
 
-                commandList.ResourceBarrier(new ResourceBarrier(new ResourceTransitionBarrier(dx.renderTargets[frameIndex], ResourceStates.RenderTarget, ResourceStates.Common)));
+                commandList.ResourceBarrier(new ResourceBarrier(new ResourceTransitionBarrier(graphicsState.renderTargets[frameIndex], ResourceStates.RenderTarget, ResourceStates.Common)));
 
                 commandList.Close();
-                dx.commandQueue.ExecuteCommandList(commandList);
+                graphicsState.commandQueue.ExecuteCommandList(commandList);
 
-                dx.swapChain.Present(1);
+                graphicsState.swapChain.Present(1);
 
-                dx.EndFrame();
+                graphicsState.EndFrame();
             }
 
             {

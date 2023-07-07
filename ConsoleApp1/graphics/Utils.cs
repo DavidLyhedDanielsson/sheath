@@ -1,7 +1,7 @@
 using Vortice.Dxc;
 using FluentResults;
 
-namespace Graphics;
+namespace ConsoleApp1.Graphics;
 
 public static class Utils
 {

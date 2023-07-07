@@ -1,16 +1,16 @@
-namespace ConsoleApp1;
+namespace ConsoleApp1.Graphics;
 
 using Vortice.Direct3D12;
 using Vortice.DXGI;
 using FluentResults;
 
-public class PipelineStateObject
+public class PSOConfig
 {
     public ID3D12PipelineState NdcTriangle { get; private set; }
 
-    public static Result<PipelineStateObject> Create(Settings settings, ID3D12Device device, ID3D12RootSignature rootSignature)
+    public static Result<PSOConfig> Create(Settings settings, ID3D12Device device, ID3D12RootSignature rootSignature)
     {
-        PipelineStateObject pso = new PipelineStateObject();
+        PSOConfig pso = new PSOConfig();
 
         var vertexShader = Graphics.Utils.CompileVertexShader("ndc_triangle.hlsl").LogIfFailed().Value;
         var pixelShader = Graphics.Utils.CompilePixelShader("white.hlsl").LogIfFailed().Value;
