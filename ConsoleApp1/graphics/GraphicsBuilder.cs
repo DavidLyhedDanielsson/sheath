@@ -1,6 +1,6 @@
 using ConsoleApp1.Asset;
-using ConsoleApp1.Models;
 using Vortice.Direct3D12;
+using Vortice.DXGI;
 using static System.Runtime.InteropServices.Marshal;
 
 namespace ConsoleApp1.Graphics;
@@ -19,12 +19,12 @@ public static class GraphicsBuilder
             return this;
         }
 
-        public List<Model> Build()
+        public List<VIBufferView> Build()
         {
-            var vertexCount = _meshes.Sum(mesh => mesh.Vertices.Length);
+            var totalVertexCount = _meshes.Sum(mesh => mesh.Vertices.Length);
             var totalIndexCount = _meshes.Sum(mesh => mesh.Submeshes.Sum(submesh => submesh.Indices.Length));
 
-            int vertexDataSize = SizeOf(typeof(Vertex)) * vertexCount;
+            int vertexDataSize = SizeOf(typeof(Vertex)) * totalVertexCount;
             // uint = 32
             int indexDataSize = 32 * totalIndexCount;
 
@@ -52,7 +52,7 @@ public static class GraphicsBuilder
                 ResourceDescription.Buffer(indexDataSize),
                 ResourceStates.CopyDest);
 
-            List<Model> models = new(_meshes.Count);
+            List<VIBufferView> bufferViews = new(_meshes.Count);
 
             int vertexCountOffset = 0;
             int indexByteOffset = 0;
@@ -67,12 +67,11 @@ public static class GraphicsBuilder
                         indices[indexI++] = mesh.Submeshes[submeshI].Indices[i] + indexCountOffset;
                 }
 
-                models.Add(new Model
+                bufferViews.Add(new VIBufferView
                 {
-                    pipelineStateObject = PsoConfig.NdcTriangle,
-                    vertexBuffer = vertexBuffer,
-                    indexBuffer = indexBuffer,
-                    indexOffset = indexCountOffset,
+                    VertexBuffer = vertexBuffer,
+                    IndexBuffer = indexBuffer,
+                    IndexBufferOffset = indexCountOffset,
                 });
 
                 uploadVertexBuffer.SetData(indices, indexByteOffset);
@@ -87,7 +86,7 @@ public static class GraphicsBuilder
             GraphicsState.commandList.CopyResource(vertexBuffer, uploadVertexBuffer);
             GraphicsState.commandList.CopyResource(indexBuffer, uploadIndexBuffer);
 
-            return models;
+            return bufferViews;
         }
     }
 
@@ -104,7 +103,103 @@ public static class GraphicsBuilder
 
         public void Build()
         {
+            var device = GraphicsState.device;
+            int totalByteSize = _textures.Sum(texture => texture.Width * texture.Height * 4);
 
+            List<ResourceDescription> resourceDescriptions = new(_textures.Count);
+            foreach (Texture texture in _textures)
+            {
+                resourceDescriptions.Add(
+                    ResourceDescription.Texture2D(
+                        Format.R8G8B8A8_UNorm
+                        , (uint)texture.Width
+                        , (uint)texture.Height
+                ));
+            }
+
+            ResourceAllocationInfo allocationInfo = device.GetResourceAllocationInfo(resourceDescriptions.ToArray());
+
+            ID3D12Resource uploadBuffer = device.CreateCommittedResource(HeapType.Upload, ResourceDescription.Buffer(totalByteSize), ResourceStates.CopySource);
+            ID3D12Heap heap = device.CreateHeap<ID3D12Heap>(new HeapDescription(allocationInfo.SizeInBytes, HeapType.Default));
+
+            unsafe
+            {
+                byte* uploadBufferData;
+                uploadBuffer.Map(0, (void**)&uploadBufferData);
+                int uploadBufferOffset = 0;
+
+                List<ID3D12Resource> resources = new(_textures.Count);
+                int heapOffset = 0;
+
+                // TODO: Wrap desc heap in class and remove this
+                // CBV = 0-1023, SRV = 1024-2047
+                int textureI = 1024;
+                foreach (Texture texture in _textures)
+                {
+                    // TODO: Use GetCopyableFootprints?
+                    int pitchWidth = texture.Width * 4;
+                    if (pitchWidth % D3D12.TextureDataPitchAlignment != 0)
+                        throw new NotImplementedException("Not yet :(");
+
+                    var resource = device.CreatePlacedResource<ID3D12Resource>(
+                        heap
+                        , (ulong)heapOffset
+                        , ResourceDescription.Texture2D(Format.R8G8B8A8_UNorm, (uint)texture.Width, (uint)texture.Height, 1, 1)
+                        , ResourceStates.CopyDest);
+
+                    int byteSize = texture.Width * texture.Height * 4;
+
+                    resources.Add(resource);
+
+                    int alignedByteSize = (int)(MathF.Round(byteSize / (float)allocationInfo.Alignment) * allocationInfo.Alignment);
+                    heapOffset += alignedByteSize;
+
+                    fixed (byte* source = &texture.Texels[0])
+                    {
+                        Buffer.MemoryCopy(source, uploadBufferData + uploadBufferOffset, totalByteSize, byteSize);
+                    }
+                    GraphicsState.commandList.CopyTextureRegion(
+                        new TextureCopyLocation(resource)
+                        , 0
+                        , 0
+                        , 0
+                        , new TextureCopyLocation(
+                            uploadBuffer
+                            , new PlacedSubresourceFootPrint()
+                            {
+                                Offset = (ulong)uploadBufferOffset,
+                                Footprint = new SubresourceFootPrint(Format.R8G8B8A8_UNorm, texture.Width, texture.Height, 1, texture.Width * 4)
+                            }
+                        ));
+                    uploadBufferOffset += byteSize;
+
+                    device.CreateShaderResourceView(resource, new ShaderResourceViewDescription()
+                    {
+                        Format = Format.R8G8B8A8_UNorm,
+                        ViewDimension = ShaderResourceViewDimension.Texture2D,
+                        Shader4ComponentMapping = ShaderComponentMapping.Default,
+                        Texture2D = new Texture2DShaderResourceView()
+                        {
+                            MostDetailedMip = 0,
+                            MipLevels = 1,
+                            PlaneSlice = 0,
+                            ResourceMinLODClamp = 0.0f,
+                        }
+                    }, GraphicsState.cbvUavSrvDescriptorHeap.GetCPUDescriptorHandleForHeapStart() + textureI * GraphicsState.cbvUavSrvDescriptorSize);
+                    textureI++;
+                }
+
+
+                GraphicsState.commandList.ResourceBarrier(
+                    resources.Select(resource => ResourceBarrier.BarrierTransition(
+                        resource
+                        , ResourceStates.CopyDest
+                        , ResourceStates.PixelShaderResource
+                    )).ToArray()
+                );
+
+                uploadBuffer.Unmap(0);
+            }
         }
     }
 

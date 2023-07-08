@@ -113,8 +113,10 @@ namespace ConsoleApp1
                 commandList.RSSetScissorRect(settings.Window.Width, settings.Window.Height);
                 commandList.IASetPrimitiveTopology(Vortice.Direct3D.PrimitiveTopology.TriangleList);
                 commandList.SetGraphicsRootSignature(graphicsState.rootSignature);
+                commandList.SetDescriptorHeaps(graphicsState.cbvUavSrvDescriptorHeap);
+                commandList.SetGraphicsRootDescriptorTable(0, graphicsState.cbvUavSrvDescriptorHeap.GetGPUDescriptorHandleForHeapStart());
 
-                commandList.DrawInstanced(3, 1, 0, 0);
+                commandList.DrawInstanced(6, 1, 0, 0);
 
                 commandList.ResourceBarrier(new ResourceBarrier(new ResourceTransitionBarrier(graphicsState.renderTargets[frameIndex], ResourceStates.RenderTarget, ResourceStates.Common)));
 

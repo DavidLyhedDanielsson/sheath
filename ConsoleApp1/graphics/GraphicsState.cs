@@ -117,7 +117,23 @@ public class GraphicsState
                         )
                     , ShaderVisibility.All)
                 },
-                StaticSamplers = new StaticSamplerDescription[] { },
+                StaticSamplers = new StaticSamplerDescription[] {
+                    new StaticSamplerDescription(
+                        Filter.MinMagMipLinear
+                        , TextureAddressMode.Mirror
+                        , TextureAddressMode.Mirror
+                        , TextureAddressMode.Mirror
+                        , 0.0f
+                        , 1
+                        , ComparisonFunction.Never
+                        , StaticBorderColor.OpaqueWhite
+                        , 0.0f
+                        , D3D12.Float32Max
+                        , 0
+                        , 2
+                        , ShaderVisibility.Pixel
+                    )
+                },
             }
         ), out state.rootSignature);
 
