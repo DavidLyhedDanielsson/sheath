@@ -19,5 +19,5 @@ public class Mesh
 public class Submesh
 {
     //public required string MaterialName { get; init; }
-    public required int[] Indices { get; init; }
+    public required uint[] Indices { get; init; }
 }

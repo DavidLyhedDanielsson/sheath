@@ -7,6 +7,12 @@ namespace ConsoleApp1.Graphics;
 
 public static class GraphicsBuilder
 {
+    public class MeshVIBuffer
+    {
+        public required string MeshName { get; init; }
+        public required VIBufferView VIBufferView { get; init; }
+    };
+
     public class VertexIndexBuilder
     {
         public required GraphicsState GraphicsState { get; init; }
@@ -19,14 +25,13 @@ public static class GraphicsBuilder
             return this;
         }
 
-        public List<VIBufferView> Build()
+        public List<MeshVIBuffer> Build()
         {
             var totalVertexCount = _meshes.Sum(mesh => mesh.Vertices.Length);
             var totalIndexCount = _meshes.Sum(mesh => mesh.Submeshes.Sum(submesh => submesh.Indices.Length));
 
             int vertexDataSize = SizeOf(typeof(Vertex)) * totalVertexCount;
-            // uint = 32
-            int indexDataSize = 32 * totalIndexCount;
+            int indexDataSize = SizeOf(typeof(uint)) * totalIndexCount;
 
             var device = GraphicsState.device;
 
@@ -51,41 +56,92 @@ public static class GraphicsBuilder
                 HeapFlags.None,
                 ResourceDescription.Buffer(indexDataSize),
                 ResourceStates.CopyDest);
-
-            List<VIBufferView> bufferViews = new(_meshes.Count);
-
-            int vertexCountOffset = 0;
-            int indexByteOffset = 0;
-            int indexCountOffset = 0;
-            foreach (Mesh mesh in _meshes)
+            
+            device.CreateShaderResourceView(vertexBuffer, new ShaderResourceViewDescription()
             {
-                var meshIndexCount = mesh.Submeshes.Sum(submesh => submesh.Indices.Length);
-                var indices = new int[meshIndexCount];
-                for (int submeshI = 0, indexI = 0; submeshI < mesh.Submeshes.Length; ++submeshI)
+                Format = Format.Unknown,
+                ViewDimension = ShaderResourceViewDimension.Buffer,
+                Shader4ComponentMapping = ShaderComponentMapping.Default,
+                Buffer =  new BufferShaderResourceView()
                 {
-                    for (int i = 0; i < mesh.Submeshes[submeshI].Indices.Length; ++i)
-                        indices[indexI++] = mesh.Submeshes[submeshI].Indices[i] + indexCountOffset;
+                   Flags = BufferShaderResourceViewFlags.None,
+                   FirstElement = 0,
+                   NumElements = totalVertexCount,
+                   StructureByteStride = SizeOf(typeof(Vertex)),
+                },
+            }, GraphicsState.cbvUavSrvDescriptorHeap.GetCPUDescriptorHandleForHeapStart() + GraphicsState.cbvUavSrvDescriptorSize * 2048);
+            
+            List<MeshVIBuffer> bufferViews = new(_meshes.Count);
+
+            unsafe
+            {
+                byte* vertexUploadData;
+                uploadVertexBuffer.Map(0, (void**)&vertexUploadData);
+
+                byte* indexUploadData;
+                uploadIndexBuffer.Map(0, (void**)&indexUploadData);
+
+                uint vertexIdOffset = 0;
+                int usedIndexCount = 0;
+                int usedVertexCount = 0;
+                foreach (Mesh mesh in _meshes)
+                {
+                    var meshIndexCount = mesh.Submeshes.Sum(submesh => submesh.Indices.Length);
+                    var indices = new uint[meshIndexCount];
+
+                    uint maxIndexValue = 0;
+                    for (int submeshI = 0, indexI = 0; submeshI < mesh.Submeshes.Length; ++submeshI)
+                    {
+                        Submesh submesh = mesh.Submeshes[submeshI];
+                        for (int i = 0; i < submesh.Indices.Length; ++i)
+                        {
+                            uint indexValue = submesh.Indices[i];
+                            indices[indexI++] = submesh.Indices[i] + vertexIdOffset;
+                            maxIndexValue = Math.Max(maxIndexValue, indexValue);
+                        }
+                    }
+
+                    vertexIdOffset += maxIndexValue + 1;
+
+                    bufferViews.Add(new MeshVIBuffer
+                    {
+                        MeshName = mesh.Name,
+                        VIBufferView = new VIBufferView
+                        {
+                            VertexBuffer = vertexBuffer,
+                            IndexBuffer = indexBuffer,
+                            IndexStart = usedIndexCount,
+                            IndexCount = meshIndexCount,
+                            IndexBufferTotalCount = totalIndexCount,
+                        }
+                    });
+
+                    var indexByteSize = SizeOf(typeof(uint));
+                    fixed (void* source = &indices[0])
+                    {
+                        Buffer.MemoryCopy(source, indexUploadData + usedIndexCount * indexByteSize, (totalIndexCount - usedIndexCount) * indexByteSize, meshIndexCount * indexByteSize);
+                    }
+
+                    usedIndexCount += meshIndexCount;
+
+                    var vertexByteSize = SizeOf(typeof(Vertex));
+                    fixed (void* source = &mesh.Vertices[0])
+                    {
+                        Buffer.MemoryCopy(source, vertexUploadData + usedVertexCount * vertexByteSize, (totalVertexCount - usedVertexCount) * vertexByteSize, mesh.Vertices.Length * vertexByteSize);
+                    }
+                    usedVertexCount += mesh.Vertices.Length;
                 }
-
-                bufferViews.Add(new VIBufferView
-                {
-                    VertexBuffer = vertexBuffer,
-                    IndexBuffer = indexBuffer,
-                    IndexBufferOffset = indexCountOffset,
-                });
-
-                uploadVertexBuffer.SetData(indices, indexByteOffset);
-
-                indexByteOffset += SizeOf(typeof(int)) * meshIndexCount;
-                indexCountOffset += meshIndexCount;
-
-                uploadVertexBuffer.SetData(mesh.Vertices.ToArray(), vertexCountOffset);
-                vertexCountOffset += SizeOf(typeof(Vertex)) * mesh.Vertices.Length;
+                
+                uploadVertexBuffer.Unmap(0);
+                uploadIndexBuffer.Unmap(0);
             }
 
             GraphicsState.commandList.CopyResource(vertexBuffer, uploadVertexBuffer);
             GraphicsState.commandList.CopyResource(indexBuffer, uploadIndexBuffer);
-
+            
+            GraphicsState.commandList.ResourceBarrierTransition(vertexBuffer, ResourceStates.CopyDest, ResourceStates.AllShaderResource);
+            GraphicsState.commandList.ResourceBarrierTransition(indexBuffer, ResourceStates.CopyDest, ResourceStates.IndexBuffer);
+            
             return bufferViews;
         }
     }
@@ -120,6 +176,7 @@ public static class GraphicsBuilder
             ResourceAllocationInfo allocationInfo = device.GetResourceAllocationInfo(resourceDescriptions.ToArray());
 
             ID3D12Resource uploadBuffer = device.CreateCommittedResource(HeapType.Upload, ResourceDescription.Buffer(totalByteSize), ResourceStates.CopySource);
+            // This just leaks, lol
             ID3D12Heap heap = device.CreateHeap<ID3D12Heap>(new HeapDescription(allocationInfo.SizeInBytes, HeapType.Default));
 
             unsafe
@@ -203,23 +260,6 @@ public static class GraphicsBuilder
         }
     }
 
-    public class SurfaceBuilder
-    {
-        public required GraphicsState GraphicsState { get; init; }
-        private List<Material> _materials = new();
-
-        public SurfaceBuilder AddMaterial(Material material)
-        {
-            _materials.Add(material);
-            return this;
-        }
-
-        public void Build()
-        {
-
-        }
-    }
-
     public static VertexIndexBuilder CreateVertexIndexBuffers(GraphicsState state, PSOConfig psoConfig)
     {
         return new VertexIndexBuilder() { GraphicsState = state, PsoConfig = psoConfig };
@@ -228,10 +268,5 @@ public static class GraphicsBuilder
     public static TextureBuilder CreateTextures(GraphicsState state)
     {
         return new TextureBuilder() { GraphicsState = state };
-    }
-
-    public static SurfaceBuilder CreateSurfaces(GraphicsState state)
-    {
-        return new SurfaceBuilder() { GraphicsState = state };
     }
 }

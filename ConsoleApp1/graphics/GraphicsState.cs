@@ -94,6 +94,7 @@ public class GraphicsState
         state.rtvDescriptorHeap = state.device.CreateDescriptorHeap(new(DescriptorHeapType.RenderTargetView, settings.Graphics.BackBufferCount, DescriptorHeapFlags.None));
 
         state.cbvUavSrvDescriptorSize = state.device.GetDescriptorHandleIncrementSize(DescriptorHeapType.ConstantBufferViewShaderResourceViewUnorderedAccessView);
+        // 1024 CBVs, 1024 texture SRVs, 1024 buffer SRVs
         state.cbvUavSrvDescriptorHeap = state.device.CreateDescriptorHeap(new(DescriptorHeapType.ConstantBufferViewShaderResourceViewUnorderedAccessView, 1024 * 3, DescriptorHeapFlags.ShaderVisible));
 
         for (int i = 0; i < settings.Graphics.BackBufferCount; ++i)
@@ -106,13 +107,14 @@ public class GraphicsState
         (
             new RootSignatureDescription1
             {
-                Flags = RootSignatureFlags.None,
+                Flags = RootSignatureFlags.AllowInputAssemblerInputLayout,
                 Parameters = new[] {
                     new RootParameter1(
                         new RootDescriptorTable1(
                             new[] {
                                 new DescriptorRange1(DescriptorRangeType.ConstantBufferView, -1, 0, 0, 0),
-                                new DescriptorRange1(DescriptorRangeType.ShaderResourceView, -1, 0, 1, 1024),
+                                new DescriptorRange1(DescriptorRangeType.ShaderResourceView, -1, 0, 1, 1024), // Textures
+                                new DescriptorRange1(DescriptorRangeType.ShaderResourceView, -1, 0, 2, 2048), // Vertex buffers
                             }
                         )
                     , ShaderVisibility.All)
@@ -153,7 +155,7 @@ public class GraphicsState
         fenceEvent.WaitOne();
     }
 
-    public void EndFrame()
+    public void EndFrameAndWait()
     {
         commandQueue.Signal(frameFence, ++frameCount);
         frameFence.SetEventOnCompletion(frameCount, frameFenceEvent);

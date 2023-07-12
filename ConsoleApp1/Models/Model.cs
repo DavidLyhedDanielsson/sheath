@@ -1,10 +1,14 @@
-using Vortice.Direct3D12;
+using ConsoleApp1.Graphics;
 
 namespace ConsoleApp1.Models;
 
 public class Model
 {
-    public ID3D12Resource vertexBuffer;
-    public ID3D12Resource indexBuffer;
-    public int indexOffset;
+    public class Submesh
+    {
+        public required VIBufferView VIBufferView { get; init; }
+        public required Surface Surface { get; init; }
+    };
+
+    public required Submesh[] Submeshes { get; init; }
 }

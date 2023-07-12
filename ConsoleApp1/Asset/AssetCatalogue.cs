@@ -5,6 +5,7 @@ public class AssetCatalogue
     private Dictionary<string, Mesh> _meshes = new();
     private Dictionary<string, Material> _materials = new();
     private Dictionary<string, Texture> _textures = new();
+    // One string per submesh
     private Dictionary<Mesh, string[]> _defaultMeshMaterials = new();
 
     public bool HasMesh(string name)
@@ -26,6 +27,12 @@ public class AssetCatalogue
     public void AddMaterial(Material material)
     {
         _materials.Add(material.Name, material);
+    }
+
+    public Material? GetMaterial(string name)
+    {
+        _materials.TryGetValue(name, out var material);
+        return material;
     }
 
     public bool HasTexture(string filePath)
@@ -65,5 +72,11 @@ public class AssetCatalogue
     {
         foreach (var materials in _materials.Values)
             action(materials);
+    }
+
+    public void ForEachDefaultMaterial(Action<Mesh, string[]> action)
+    {
+        foreach (var pair in _defaultMeshMaterials)
+            action(pair.Key, pair.Value);
     }
 }

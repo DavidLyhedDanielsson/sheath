@@ -39,7 +39,7 @@ public class AssetLoader
 
         // All submesh vertices and indices will be placed in a single array respectively
         int vertexOffset = 0;
-        int indexOffset = 0;
+        uint indexOffset = 0;
 
         for (int meshI = 0; meshI < meshes.Count; ++meshI)
         {
@@ -54,10 +54,10 @@ public class AssetLoader
                 };
             }
 
-            int[] indices = mesh.GetIndices();
+            uint[] indices = mesh.GetUnsignedIndices();
             for (var i = 0; i < indices.Length; i++)
                 indices[i] += indexOffset;
-            indexOffset += mesh.VertexCount;
+            indexOffset += (uint)mesh.VertexCount;
 
             submeshes[meshI] = new Submesh()
             {
