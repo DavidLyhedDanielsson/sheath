@@ -20,5 +20,6 @@ Vertex main(uint vertexId : SV_VERTEXID) {
     Vertex vertex;
     vertex.svPosition = mul(float4(vertices[vertexId].position, 1.0f), projMatrix);
     vertex.normal = vertices[vertexId].normal;
+    vertex.texCoords = vertices[vertexId].texCoords;
     return vertex;
 }

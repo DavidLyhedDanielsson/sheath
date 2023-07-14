@@ -17,6 +17,7 @@ public class GraphicsState
     public ID3D12DescriptorHeap cbvUavSrvDescriptorHeap;
     public ID3D12Resource[] renderTargets;
     public ID3D12Resource depthStencilView;
+    public ID3D12Resource instanceBuffer;
 
     public IDXGISwapChain swapChain;
 
@@ -109,12 +110,13 @@ public class GraphicsState
             {
                 Flags = RootSignatureFlags.AllowInputAssemblerInputLayout,
                 Parameters = new[] {
+                    new RootParameter1(RootParameterType.ConstantBufferView, new RootDescriptor1(0, 3, RootDescriptorFlags.None), ShaderVisibility.All),
                     new RootParameter1(
                         new RootDescriptorTable1(
                             new[] {
                                 new DescriptorRange1(DescriptorRangeType.ConstantBufferView, -1, 0, 0, 0),
                                 new DescriptorRange1(DescriptorRangeType.ShaderResourceView, -1, 0, 1, 1024), // Textures
-                                new DescriptorRange1(DescriptorRangeType.ShaderResourceView, -1, 0, 2, 2048), // Vertex buffers
+                                new DescriptorRange1(DescriptorRangeType.ShaderResourceView, -1, 0, 2, 2048), // Vertex buffers and data buffers
                             }
                         )
                     , ShaderVisibility.All)
@@ -144,6 +146,28 @@ public class GraphicsState
 
         state.fence = state.device.CreateFence();
         state.fenceEvent = new AutoResetEvent(false);
+        
+        state.instanceBuffer = state.device.CreateCommittedResource(
+            HeapType.Upload,
+            HeapFlags.None,
+            ResourceDescription.Buffer(64 * 1024 * 1024),
+            ResourceStates.Common);
+        unsafe
+        {
+            int[] initialData = new int[1024];
+            for (int i = 0; i < 1024; ++i)
+                initialData[i] = 0;
+            
+            byte* data;
+            state.instanceBuffer.Map(0, (void**)&data);
+            fixed (void* source = &initialData[0])
+            {
+                for (int i = 0; i < 64 * 1024 * 1024; i += 1024 * 4)
+                    Buffer.MemoryCopy(source, data + i , 64 * 1024 * 1024, 1024 * 4);
+            }
+            state.instanceBuffer.Unmap(0);
+        }
+        state.commandList.ResourceBarrierTransition(state.instanceBuffer, ResourceStates.Common, ResourceStates.VertexAndConstantBuffer);
 
         return Result.Ok(state);
     }

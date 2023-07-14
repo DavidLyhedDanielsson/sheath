@@ -2,6 +2,11 @@ using ConsoleApp1.Graphics;
 
 namespace ConsoleApp1.Models;
 
+public struct InstanceData
+{
+   public required int SurfaceID { get; init; } 
+}
+
 public class Model
 {
     public class Submesh

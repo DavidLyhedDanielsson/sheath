@@ -178,12 +178,27 @@ namespace ConsoleApp1
                 commandList.IASetPrimitiveTopology(Vortice.Direct3D.PrimitiveTopology.TriangleList);
                 commandList.SetGraphicsRootSignature(graphicsState.rootSignature);
                 commandList.SetDescriptorHeaps(graphicsState.cbvUavSrvDescriptorHeap);
-                commandList.SetGraphicsRootDescriptorTable(0,
-                    graphicsState.cbvUavSrvDescriptorHeap.GetGPUDescriptorHandleForHeapStart());
+                commandList.SetGraphicsRootDescriptorTable(1, graphicsState.cbvUavSrvDescriptorHeap.GetGPUDescriptorHandleForHeapStart());
 
                 Model model = showroom.GetShowcase(modelCycle[(uptime.Elapsed.Seconds / 3) % modelCycle.Length])!.Model;
-                foreach (var submesh in model.Submeshes)
+                unsafe
                 {
+                    byte* data;
+                    graphicsState.instanceBuffer.Map(0, (void**)&data);
+                    for(int i = 0; i < model.Submeshes.Length; ++i)
+                    {
+                       Buffer.MemoryCopy(&i, data + i * 256, 4, 4); 
+                    }
+
+                    graphicsState.instanceBuffer.Unmap(0);
+                }
+
+                //foreach (var submesh in model.Submeshes)
+                for(int i = 0; i < model.Submeshes.Length; ++i)
+                {
+                    var submesh = model.Submeshes[i];
+                    
+                    commandList.SetGraphicsRootConstantBufferView(0, graphicsState.instanceBuffer.GPUVirtualAddress + (ulong)(i * 256));
                     commandList.IASetIndexBuffer(new IndexBufferView(submesh.VIBufferView.IndexBuffer.GPUVirtualAddress, submesh.VIBufferView.IndexBufferTotalCount * SizeOf(typeof(uint)), Vortice.DXGI.Format.R32_UInt));
                     commandList.DrawIndexedInstanced(submesh.VIBufferView.IndexCount, 1, submesh.VIBufferView.IndexStart, 0, 0);
                 }
