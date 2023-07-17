@@ -94,28 +94,6 @@ namespace ConsoleApp1
                 "SM_Small_House_02_C",
             };
 
-
-            /*GraphicsBuilder.VertexIndexBuilder viBuilder =
-                GraphicsBuilder.CreateVertexIndexBuffers(graphicsState, psoConfig);*/
-            assetCatalogue.ForEachMesh(mesh =>
-            {
-                if (!loadCycle.Contains(mesh.Name))
-                    return;
-
-                //viBuilder.AddMesh(mesh);
-            });
-            //List<GraphicsBuilder.MeshVIBuffer> meshVIBuffers = viBuilder.Build();
-
-            /*GraphicsBuilder.TextureBuilder textureBuilder = GraphicsBuilder.CreateTextures(graphicsState);
-            assetCatalogue.ForEachMaterial(material =>
-            {
-                Texture? texture = assetCatalogue.GetTexture(material.Albedo.FilePath);
-
-                if (texture != null)
-                    textureBuilder.AddTexture(texture);
-            });
-            textureBuilder.Build();*/
-
             Showroom showroom = new();
 
             var heapResult = LinearResourceBuilder.CreateHeapState(graphicsState).LogIfFailed();
@@ -146,7 +124,7 @@ namespace ConsoleApp1
             ID3D12Resource cameraBuffer = graphicsState.device.CreateCommittedResource(HeapType.Upload,
                 ResourceDescription.Buffer(1024), ResourceStates.AllShaderResource);
             graphicsState.device.CreateConstantBufferView(new ConstantBufferViewDescription(cameraBuffer, 1024),
-                heapState.cbvUavSrvDescriptorHeap.Segments[LinearResourceBuilder.descriptorHeapCBV].NextCpuHandle());
+                heapState.cbvUavSrvDescriptorHeap.Segments[HeapConfig.Segments.cbvs].NextCpuHandle());
 
             graphicsState.commandList.Close();
             graphicsState.commandQueue.ExecuteCommandList(graphicsState.commandList);
@@ -228,7 +206,6 @@ namespace ConsoleApp1
                     graphicsState.instanceBuffer.Unmap(0);
                 }
 
-                //foreach (var submesh in model.Submeshes)
                 for (int i = 0; i < model.Submeshes.Length; ++i)
                 {
                     var submesh = model.Submeshes[i];

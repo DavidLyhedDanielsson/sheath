@@ -94,15 +94,13 @@ public class GraphicsState
         state.rtvDescriptorSize = state.device.GetDescriptorHandleIncrementSize(DescriptorHeapType.RenderTargetView);
         state.rtvDescriptorHeap = state.device.CreateDescriptorHeap(new(DescriptorHeapType.RenderTargetView, settings.Graphics.BackBufferCount, DescriptorHeapFlags.None));
 
-        //state.cbvUavSrvDescriptorSize = state.device.GetDescriptorHandleIncrementSize(DescriptorHeapType.ConstantBufferViewShaderResourceViewUnorderedAccessView);
-        // 1024 CBVs, 1024 texture SRVs, 1024 buffer SRVs
-        //state.cbvUavSrvDescriptorHeap = state.device.CreateDescriptorHeap(new(DescriptorHeapType.ConstantBufferViewShaderResourceViewUnorderedAccessView, 1024 * 3, DescriptorHeapFlags.ShaderVisible));
-
         for (int i = 0; i < settings.Graphics.BackBufferCount; ++i)
         {
             state.renderTargets[i] = state.swapChain.GetBuffer<ID3D12Resource>(i);
             state.device.CreateRenderTargetView(state.renderTargets[i], null, state.rtvDescriptorHeap.GetCPUDescriptorHandleForHeapStart() + i * state.rtvDescriptorSize);
         }
+
+        var a = HeapConfig.ArraySize.cbvs;
 
         state.device.CreateRootSignature(new VersionedRootSignatureDescription
         (
@@ -110,14 +108,14 @@ public class GraphicsState
             {
                 Flags = RootSignatureFlags.AllowInputAssemblerInputLayout,
                 Parameters = new[] {
-                    new RootParameter1(RootParameterType.ConstantBufferView, new RootDescriptor1(0, 0, RootDescriptorFlags.None), ShaderVisibility.All),
+                    new RootParameter1(RootParameterType.ConstantBufferView, new RootDescriptor1(HeapConfig.BaseRegister.perInstanceBuffer, HeapConfig.RegisterSpace.perInstanceBuffer, RootDescriptorFlags.None), ShaderVisibility.All),
                     new RootParameter1(
                         new RootDescriptorTable1(
                             new[] {
-                                new DescriptorRange1(DescriptorRangeType.ConstantBufferView, -1, 1, 0, 0), // CBVs
-                                new DescriptorRange1(DescriptorRangeType.ShaderResourceView, -1, 0, 1, 4), // Textures
-                                new DescriptorRange1(DescriptorRangeType.ShaderResourceView, -1, 0, 2, 4 + 1024), // Vertex buffers
-                                new DescriptorRange1(DescriptorRangeType.ShaderResourceView, -1, 0, 3, 4 + 1024 + 1024), // Surfaces
+                                new DescriptorRange1(DescriptorRangeType.ConstantBufferView, -1, HeapConfig.BaseRegister.cbvs, HeapConfig.RegisterSpace.cbvs, HeapConfig.DescriptorOffsetFromStart.cbvs),
+                                new DescriptorRange1(DescriptorRangeType.ShaderResourceView, -1, HeapConfig.BaseRegister.textures, HeapConfig.RegisterSpace.textures, HeapConfig.DescriptorOffsetFromStart.textures),
+                                new DescriptorRange1(DescriptorRangeType.ShaderResourceView, -1, HeapConfig.BaseRegister.vertexBuffers, HeapConfig.RegisterSpace.vertexBuffers, HeapConfig.DescriptorOffsetFromStart.vertexBuffers),
+                                new DescriptorRange1(DescriptorRangeType.ShaderResourceView, -1, HeapConfig.BaseRegister.surfaces, HeapConfig.RegisterSpace.surfaces, HeapConfig.DescriptorOffsetFromStart.surfaces),
                             }
                         )
                     , ShaderVisibility.All)
@@ -134,8 +132,8 @@ public class GraphicsState
                         , StaticBorderColor.OpaqueWhite
                         , 0.0f
                         , D3D12.Float32Max
-                        , 0
-                        , 4
+                        , HeapConfig.BaseRegister.staticSamplers
+                        , HeapConfig.RegisterSpace.staticSamplers
                         , ShaderVisibility.Pixel
                     )
                 },

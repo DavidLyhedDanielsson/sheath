@@ -17,10 +17,10 @@ public interface IResourceBuilder
 
 public class LinearResourceBuilder : IResourceBuilder
 {
-    public const int descriptorHeapCBV = 0;
+    /*public const int descriptorHeapCBV = 0;
     public const int descriptorHeapTexture = 1;
     public const int descriptorHeapVertex = 2;
-    public const int descriptorHeapSurface = 3;
+    public const int descriptorHeapSurface = 3;*/
 
     public static VIBufferView CreateVertexIndexBuffer(
         GraphicsState graphicsState
@@ -51,7 +51,7 @@ public class LinearResourceBuilder : IResourceBuilder
                 NumElements = totalVertexCount,
                 StructureByteStride = vertexByteSize,
             },
-        }, heapState.cbvUavSrvDescriptorHeap.Segments[descriptorHeapVertex].NextCpuHandle()
+        }, heapState.cbvUavSrvDescriptorHeap.Segments[HeapConfig.Segments.vertexBuffers].NextCpuHandle()
         );
 
         ID3D12Resource indexBuffer = heapState.indexHeap.AppendBuffer(device, indicesByteSize);
@@ -110,25 +110,20 @@ public class LinearResourceBuilder : IResourceBuilder
 
     public static Result<HeapState> CreateHeapState(GraphicsState graphicsState)
     {
-        const int maxCbvCount = 4;
-        const int maxTextureCount = 1024;
-        const int maxVertexBufferCount = 1024;
-        const int maxSurfaceCount = 1024;
-
         ID3D12DescriptorHeap id3d12DescriptorHeap = graphicsState.device.CreateDescriptorHeap(
             new DescriptorHeapDescription(
                 DescriptorHeapType.ConstantBufferViewShaderResourceViewUnorderedAccessView
-                , maxCbvCount + maxTextureCount + maxVertexBufferCount + maxSurfaceCount
+                , HeapConfig.ArraySize.total
                 , DescriptorHeapFlags.ShaderVisible
             )
         );
 
         int handleSize = graphicsState.device.GetDescriptorHandleIncrementSize(DescriptorHeapType.ConstantBufferViewShaderResourceViewUnorderedAccessView);
         var descriptorHeap = new DescriptorHeap.Builder(id3d12DescriptorHeap, handleSize)
-            .WithSegment(maxCbvCount)
-            .WithSegment(maxTextureCount)
-            .WithSegment(maxVertexBufferCount)
-            .WithSegment(maxSurfaceCount)
+            .WithSegment(HeapConfig.ArraySize.cbvs)
+            .WithSegment(HeapConfig.ArraySize.textures)
+            .WithSegment(HeapConfig.ArraySize.vertexBuffers)
+            .WithSegment(HeapConfig.ArraySize.surfaces)
             .Build();
 
         const int uploadHeapSize = 256 * 1024 * 1024;
