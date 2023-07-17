@@ -51,7 +51,7 @@ public class LinearResourceBuilder : IResourceBuilder
                 NumElements = totalVertexCount,
                 StructureByteStride = vertexByteSize,
             },
-        }, heapState.cbvUavSrvDescriptorHeap.segments[descriptorHeapVertex].NextCpuHandle()
+        }, heapState.cbvUavSrvDescriptorHeap.Segments[descriptorHeapVertex].NextCpuHandle()
         );
 
         ID3D12Resource indexBuffer = heapState.indexHeap.AppendBuffer(device, indicesByteSize);

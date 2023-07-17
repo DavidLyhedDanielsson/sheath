@@ -5,9 +5,9 @@ namespace ConsoleApp1.Graphics;
 
 class UploadTask
 {
-    public ID3D12Resource TargetResource { get; init; }
-    public int TargetOffset { get; init; }
-    public byte[] Data { get; init; }
+    public required ID3D12Resource TargetResource { get; init; }
+    public required int TargetOffset { get; init; }
+    public required byte[] Data { get; init; }
 
     unsafe public void Deconstruct(out ID3D12Resource targetResource, out int targetOffset, out byte[] data)
     {

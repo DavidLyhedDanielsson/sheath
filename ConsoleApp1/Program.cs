@@ -146,7 +146,7 @@ namespace ConsoleApp1
             ID3D12Resource cameraBuffer = graphicsState.device.CreateCommittedResource(HeapType.Upload,
                 ResourceDescription.Buffer(1024), ResourceStates.AllShaderResource);
             graphicsState.device.CreateConstantBufferView(new ConstantBufferViewDescription(cameraBuffer, 1024),
-                heapState.cbvUavSrvDescriptorHeap.segments[LinearResourceBuilder.descriptorHeapCBV].NextCpuHandle());
+                heapState.cbvUavSrvDescriptorHeap.Segments[LinearResourceBuilder.descriptorHeapCBV].NextCpuHandle());
 
             graphicsState.commandList.Close();
             graphicsState.commandQueue.ExecuteCommandList(graphicsState.commandList);

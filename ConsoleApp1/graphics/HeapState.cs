@@ -5,10 +5,10 @@ using Vortice.Direct3D12;
 
 namespace ConsoleApp1.Graphics;
 
-internal struct Heap
+internal class Heap
 {
     public required ID3D12Heap ID3D12Heap { get; init; }
-    public readonly required ulong Size { get; init; }
+    public required ulong Size { get; init; }
     public required ulong Used { get; set; }
     public ulong PaddedSpace { get; set; }
 
@@ -50,11 +50,11 @@ internal struct Heap
     }
 }
 
-internal struct DescriptorHeapSegment
+internal class DescriptorHeapSegment
 {
-    public readonly required int Size { get; init; }
-    public readonly required CpuDescriptorHandle BaseHandle { get; init; }
-    public readonly required int HandleSize { get; init; }
+    public required int Size { get; init; }
+    public required CpuDescriptorHandle BaseHandle { get; init; }
+    public required int HandleSize { get; init; }
     public int Used { get; set; }
 
     public CpuDescriptorHandle NextCpuHandle()
@@ -63,11 +63,11 @@ internal struct DescriptorHeapSegment
     }
 }
 
-internal struct DescriptorHeap
+internal class DescriptorHeap
 {
-    public readonly ID3D12DescriptorHeap ID3D12DescriptorHeap { get; init; }
-    public readonly int size { get; init; }
-    public readonly DescriptorHeapSegment[] segments { get; init; }
+    public required ID3D12DescriptorHeap ID3D12DescriptorHeap { get; init; }
+    public required int Size { get; init; }
+    public required DescriptorHeapSegment[] Segments { get; init; }
 
     public class Builder
     {
@@ -93,8 +93,8 @@ internal struct DescriptorHeap
             return new DescriptorHeap
             {
                 ID3D12DescriptorHeap = _heap,
-                size = _segments.Sum(),
-                segments = _segments.Select((segment, i) => new DescriptorHeapSegment
+                Size = _segments.Sum(),
+                Segments = _segments.Select((segment, i) => new DescriptorHeapSegment
                 {
                     Size = segment,
                     BaseHandle = _heap.GetCPUDescriptorHandleForHeapStart().Offset(_segments.Take(i).Sum(), _handleSize),
