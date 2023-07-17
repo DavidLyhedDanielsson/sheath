@@ -88,7 +88,7 @@ public class AssetLoader
         return new Material()
         {
             Name = material.Name,
-            Diffuse = diffuseTexture,
+            Albedo = diffuseTexture,
         };
     }
 

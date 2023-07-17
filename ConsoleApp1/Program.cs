@@ -65,54 +65,20 @@ namespace ConsoleApp1
                 return -3;
             PSOConfig psoConfig = psoResult.Value;
 
-            GraphicsBuilder.VertexIndexBuilder viBuilder =
-                GraphicsBuilder.CreateVertexIndexBuffers(graphicsState, psoConfig);
-            assetCatalogue.ForEachMesh(mesh =>
+            var loadCycle = new string[]
             {
-                viBuilder.AddMesh(mesh);
-            });
-            List<GraphicsBuilder.MeshVIBuffer> meshVIBuffers = viBuilder.Build();
-
-            GraphicsBuilder.TextureBuilder textureBuilder = GraphicsBuilder.CreateTextures(graphicsState);
-            assetCatalogue.ForEachMaterial(material =>
-            {
-                Texture? texture = assetCatalogue.GetTexture(material.Diffuse.FilePath);
-
-                if (texture != null)
-                    textureBuilder.AddTexture(texture);
-            });
-            textureBuilder.Build();
-
-            Showroom showroom = new();
-
-            assetCatalogue.ForEachDefaultMaterial((Mesh mesh, string[] materials) =>
-            {
-                List<Material>[] mats = new List<Material>[materials.Length];
-                for (int i = 0; i < materials.Length; ++i)
-                {
-                    mats[i] = new();
-
-                    Material? material = assetCatalogue.GetMaterial(materials[i]);
-                    Debug.Assert(material != null);
-                    mats[i].Add(material);
-                }
-                
-                Model model = ModelBuilder.CreateModel(assetCatalogue, meshVIBuffers, mesh, mats);
-
-                showroom.AddShowcase(mesh.Name, model);
-            });
-
-            ID3D12Resource cameraBuffer = graphicsState.device.CreateCommittedResource(HeapType.Upload,
-                ResourceDescription.Buffer(1024), ResourceStates.AllShaderResource);
-            graphicsState.device.CreateConstantBufferView(new ConstantBufferViewDescription(cameraBuffer, 1024),
-                graphicsState.cbvUavSrvDescriptorHeap.GetCPUDescriptorHandleForHeapStart());
-
-            graphicsState.commandList.Close();
-            graphicsState.commandQueue.ExecuteCommandList(graphicsState.commandList);
-            graphicsState.WaitUntilIdle();
-
-            Stopwatch uptime = Stopwatch.StartNew();
-
+                "MapleTree_1",
+                "MapleTree_2",
+                "MapleTree_3",
+                "PineTree_1",
+                "PineTree_2",
+                "PineTree_3",
+                "PineTree_5",
+                "SM_House_01_C_2",
+                "SM_House_06_A",
+                "SM_Long_House_01_A",
+                "SM_Small_House_02_C",
+            };
             var modelCycle = new string[]
             {
                 "MapleTree_1",
@@ -127,6 +93,78 @@ namespace ConsoleApp1
                 "SM_Long_House_01_A",
                 "SM_Small_House_02_C",
             };
+
+
+            /*GraphicsBuilder.VertexIndexBuilder viBuilder =
+                GraphicsBuilder.CreateVertexIndexBuffers(graphicsState, psoConfig);*/
+            assetCatalogue.ForEachMesh(mesh =>
+            {
+                if (!loadCycle.Contains(mesh.Name))
+                    return;
+
+                //viBuilder.AddMesh(mesh);
+            });
+            //List<GraphicsBuilder.MeshVIBuffer> meshVIBuffers = viBuilder.Build();
+
+            /*GraphicsBuilder.TextureBuilder textureBuilder = GraphicsBuilder.CreateTextures(graphicsState);
+            assetCatalogue.ForEachMaterial(material =>
+            {
+                Texture? texture = assetCatalogue.GetTexture(material.Albedo.FilePath);
+
+                if (texture != null)
+                    textureBuilder.AddTexture(texture);
+            });
+            textureBuilder.Build();*/
+
+            Showroom showroom = new();
+
+            var heapResult = LinearResourceBuilder.CreateHeapState(graphicsState).LogIfFailed();
+            if (heapResult.IsFailed)
+                return -3;
+            var heapState = heapResult.Value;
+
+            assetCatalogue.ForEachDefaultMaterial((Mesh mesh, string[] materials) =>
+            {
+                if (!loadCycle.Contains(mesh.Name))
+                    return;
+
+                List<Material>[] mats = new List<Material>[materials.Length];
+                for (int i = 0; i < materials.Length; ++i)
+                {
+                    mats[i] = new();
+
+                    Material? material = assetCatalogue.GetMaterial(materials[i]);
+                    Debug.Assert(material != null);
+                    mats[i].Add(material);
+                }
+
+                Model model = ModelBuilder.CreateModel(graphicsState, heapState, assetCatalogue, mesh, mats);
+
+                showroom.AddShowcase(mesh.Name, model);
+            });
+
+            ID3D12Resource cameraBuffer = graphicsState.device.CreateCommittedResource(HeapType.Upload,
+                ResourceDescription.Buffer(1024), ResourceStates.AllShaderResource);
+            graphicsState.device.CreateConstantBufferView(new ConstantBufferViewDescription(cameraBuffer, 1024),
+                heapState.cbvUavSrvDescriptorHeap.segments[LinearResourceBuilder.descriptorHeapCBV].NextCpuHandle());
+
+            graphicsState.commandList.Close();
+            graphicsState.commandQueue.ExecuteCommandList(graphicsState.commandList);
+            graphicsState.WaitUntilIdle();
+
+            heapState.uploadBuffer.UploadsDone();
+            while (heapState.uploadBuffer.HasMoreUploads())
+            {
+                graphicsState.commandAllocator.Reset();
+                graphicsState.commandList.Reset(graphicsState.commandAllocator);
+                heapState.uploadBuffer.QueueRemainingUploads(graphicsState.commandList);
+                graphicsState.commandList.Close();
+                graphicsState.commandQueue.ExecuteCommandList(graphicsState.commandList);
+                graphicsState.WaitUntilIdle();
+                heapState.uploadBuffer.UploadsDone();
+            }
+
+            Stopwatch uptime = Stopwatch.StartNew();
 
             var running = true;
             while (running)
@@ -177,28 +215,25 @@ namespace ConsoleApp1
                 commandList.RSSetScissorRect(settings.Window.Width, settings.Window.Height);
                 commandList.IASetPrimitiveTopology(Vortice.Direct3D.PrimitiveTopology.TriangleList);
                 commandList.SetGraphicsRootSignature(graphicsState.rootSignature);
-                commandList.SetDescriptorHeaps(graphicsState.cbvUavSrvDescriptorHeap);
-                commandList.SetGraphicsRootDescriptorTable(1, graphicsState.cbvUavSrvDescriptorHeap.GetGPUDescriptorHandleForHeapStart());
+                commandList.SetDescriptorHeaps(heapState.cbvUavSrvDescriptorHeap.ID3D12DescriptorHeap);
+                commandList.SetGraphicsRootDescriptorTable(1, heapState.cbvUavSrvDescriptorHeap.ID3D12DescriptorHeap.GetGPUDescriptorHandleForHeapStart());
 
-                Model model = showroom.GetShowcase(modelCycle[(uptime.Elapsed.Seconds / 3) % modelCycle.Length])!.Model;
+                int modelIndex = (uptime.Elapsed.Seconds / 3) % modelCycle.Length;
+                Model model = showroom.GetShowcase(modelCycle[modelIndex])!.Model;
                 unsafe
                 {
                     byte* data;
                     graphicsState.instanceBuffer.Map(0, (void**)&data);
-                    for(int i = 0; i < model.Submeshes.Length; ++i)
-                    {
-                       Buffer.MemoryCopy(&i, data + i * 256, 4, 4); 
-                    }
-
+                    Buffer.MemoryCopy(&modelIndex, data, 4, 4);
                     graphicsState.instanceBuffer.Unmap(0);
                 }
 
                 //foreach (var submesh in model.Submeshes)
-                for(int i = 0; i < model.Submeshes.Length; ++i)
+                for (int i = 0; i < model.Submeshes.Length; ++i)
                 {
                     var submesh = model.Submeshes[i];
-                    
-                    commandList.SetGraphicsRootConstantBufferView(0, graphicsState.instanceBuffer.GPUVirtualAddress + (ulong)(i * 256));
+
+                    commandList.SetGraphicsRootConstantBufferView(0, graphicsState.instanceBuffer.GPUVirtualAddress);
                     commandList.IASetIndexBuffer(new IndexBufferView(submesh.VIBufferView.IndexBuffer.GPUVirtualAddress, submesh.VIBufferView.IndexBufferTotalCount * SizeOf(typeof(uint)), Vortice.DXGI.Format.R32_UInt));
                     commandList.DrawIndexedInstanced(submesh.VIBufferView.IndexCount, 1, submesh.VIBufferView.IndexStart, 0, 0);
                 }

@@ -14,7 +14,7 @@ public class GraphicsState
     public ID3D12GraphicsCommandList commandList;
     public ID3D12RootSignature rootSignature;
     public ID3D12DescriptorHeap rtvDescriptorHeap;
-    public ID3D12DescriptorHeap cbvUavSrvDescriptorHeap;
+    //public ID3D12DescriptorHeap cbvUavSrvDescriptorHeap;
     public ID3D12Resource[] renderTargets;
     public ID3D12Resource depthStencilView;
     public ID3D12Resource instanceBuffer;
@@ -31,7 +31,7 @@ public class GraphicsState
     public ulong frameCount;
 
     public int rtvDescriptorSize;
-    public int cbvUavSrvDescriptorSize;
+    //public int cbvUavSrvDescriptorSize;
 
     private static void DebugCallback(MessageCategory category, MessageSeverity severity, MessageId id, string description)
     {
@@ -94,9 +94,9 @@ public class GraphicsState
         state.rtvDescriptorSize = state.device.GetDescriptorHandleIncrementSize(DescriptorHeapType.RenderTargetView);
         state.rtvDescriptorHeap = state.device.CreateDescriptorHeap(new(DescriptorHeapType.RenderTargetView, settings.Graphics.BackBufferCount, DescriptorHeapFlags.None));
 
-        state.cbvUavSrvDescriptorSize = state.device.GetDescriptorHandleIncrementSize(DescriptorHeapType.ConstantBufferViewShaderResourceViewUnorderedAccessView);
+        //state.cbvUavSrvDescriptorSize = state.device.GetDescriptorHandleIncrementSize(DescriptorHeapType.ConstantBufferViewShaderResourceViewUnorderedAccessView);
         // 1024 CBVs, 1024 texture SRVs, 1024 buffer SRVs
-        state.cbvUavSrvDescriptorHeap = state.device.CreateDescriptorHeap(new(DescriptorHeapType.ConstantBufferViewShaderResourceViewUnorderedAccessView, 1024 * 3, DescriptorHeapFlags.ShaderVisible));
+        //state.cbvUavSrvDescriptorHeap = state.device.CreateDescriptorHeap(new(DescriptorHeapType.ConstantBufferViewShaderResourceViewUnorderedAccessView, 1024 * 3, DescriptorHeapFlags.ShaderVisible));
 
         for (int i = 0; i < settings.Graphics.BackBufferCount; ++i)
         {
@@ -110,13 +110,14 @@ public class GraphicsState
             {
                 Flags = RootSignatureFlags.AllowInputAssemblerInputLayout,
                 Parameters = new[] {
-                    new RootParameter1(RootParameterType.ConstantBufferView, new RootDescriptor1(0, 3, RootDescriptorFlags.None), ShaderVisibility.All),
+                    new RootParameter1(RootParameterType.ConstantBufferView, new RootDescriptor1(0, 0, RootDescriptorFlags.None), ShaderVisibility.All),
                     new RootParameter1(
                         new RootDescriptorTable1(
                             new[] {
-                                new DescriptorRange1(DescriptorRangeType.ConstantBufferView, -1, 0, 0, 0),
-                                new DescriptorRange1(DescriptorRangeType.ShaderResourceView, -1, 0, 1, 1024), // Textures
-                                new DescriptorRange1(DescriptorRangeType.ShaderResourceView, -1, 0, 2, 2048), // Vertex buffers and data buffers
+                                new DescriptorRange1(DescriptorRangeType.ConstantBufferView, -1, 1, 0, 0), // CBVs
+                                new DescriptorRange1(DescriptorRangeType.ShaderResourceView, -1, 0, 1, 4), // Textures
+                                new DescriptorRange1(DescriptorRangeType.ShaderResourceView, -1, 0, 2, 4 + 1024), // Vertex buffers
+                                new DescriptorRange1(DescriptorRangeType.ShaderResourceView, -1, 0, 3, 4 + 1024 + 1024), // Surfaces
                             }
                         )
                     , ShaderVisibility.All)
@@ -134,7 +135,7 @@ public class GraphicsState
                         , 0.0f
                         , D3D12.Float32Max
                         , 0
-                        , 2
+                        , 4
                         , ShaderVisibility.Pixel
                     )
                 },
@@ -146,7 +147,7 @@ public class GraphicsState
 
         state.fence = state.device.CreateFence();
         state.fenceEvent = new AutoResetEvent(false);
-        
+
         state.instanceBuffer = state.device.CreateCommittedResource(
             HeapType.Upload,
             HeapFlags.None,
@@ -157,13 +158,13 @@ public class GraphicsState
             int[] initialData = new int[1024];
             for (int i = 0; i < 1024; ++i)
                 initialData[i] = 0;
-            
+
             byte* data;
             state.instanceBuffer.Map(0, (void**)&data);
             fixed (void* source = &initialData[0])
             {
                 for (int i = 0; i < 64 * 1024 * 1024; i += 1024 * 4)
-                    Buffer.MemoryCopy(source, data + i , 64 * 1024 * 1024, 1024 * 4);
+                    Buffer.MemoryCopy(source, data + i, 64 * 1024 * 1024, 1024 * 4);
             }
             state.instanceBuffer.Unmap(0);
         }

@@ -6,13 +6,11 @@ namespace ConsoleApp1.Graphics;
 
 public static class ModelBuilder
 {
-    // TODO: Move buffers into somewhere. Showroom? Catalogue? Graphics state?
-    public static Model CreateModel(AssetCatalogue catalogue, List<GraphicsBuilder.MeshVIBuffer> buffers, Mesh mesh, List<Material>[] submeshMaterials)
+    public static Model CreateModel(GraphicsState graphicsState, HeapState heapState, AssetCatalogue catalogue, Mesh mesh, List<Material>[] submeshMaterials)
     {
         Debug.Assert(submeshMaterials.Length == mesh.Submeshes.Length);
 
-        VIBufferView? bufferView = buffers.Find(buffer => buffer.MeshName == mesh.Name)?.VIBufferView;
-        Debug.Assert(bufferView != null);
+        VIBufferView viBufferView = LinearResourceBuilder.CreateVertexIndexBuffer(graphicsState, heapState, mesh);
 
         int indexOffset = 0;
 
@@ -25,15 +23,18 @@ public static class ModelBuilder
             {
                 VIBufferView = new VIBufferView
                 {
-                    VertexBuffer = bufferView.VertexBuffer,
-                    IndexBuffer = bufferView.IndexBuffer,
-                    IndexStart = bufferView.IndexStart + indexOffset,
+                    VertexBuffer = viBufferView.VertexBuffer,
+                    IndexBuffer = viBufferView.IndexBuffer,
+                    IndexStart = viBufferView.IndexStart + indexOffset,
                     IndexCount = mesh.Submeshes[i].Indices.Length,
-                    IndexBufferTotalCount = bufferView.IndexBufferTotalCount,
+                    IndexBufferTotalCount = viBufferView.IndexBufferTotalCount,
                 },
                 Surface = new Surface
                 {
-                    AlbedoTexture = catalogue.GetTexture(material.Diffuse.FilePath)!,
+                    // TODO
+                    ID = 0,
+                    AlbedoTexture = 0,
+                    PSO = null,
                 }
             };
 

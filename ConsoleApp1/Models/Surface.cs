@@ -1,9 +1,10 @@
-using ConsoleApp1.Asset;
+using Vortice.Direct3D12;
 
 namespace ConsoleApp1.Models;
 
 public class Surface
 {
-    // TODO: This class will be much more complicated later, but only a texture for now
-    public required Texture AlbedoTexture { get; init; }
+    public required int ID { get; init; }
+    public required ID3D12PipelineState PSO { get; init; }
+    public required int AlbedoTexture { get; init; }
 }

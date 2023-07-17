@@ -1,0 +1,232 @@
+@startuml Architecture
+
+allowmixing
+
+'skinparam Linetype ortho
+'skinparam Linetype polyline
+hide empty members
+
+<style>
+    LineThickness 2
+}
+</style>
+
+package DirectX12 {
+    interface "DrawIndexedInstance" {
+        IndexCountPerInstance: UINT
+        InstanceCount: UINT
+        StartIndexLocation: UINT
+        BaseVertexLocation: INT
+        StartInstanceLocation: UINT
+    }
+    interface "IASetIndexBuffer" {
+        BufferLocation: D3D12_GPU_VIRTUAL_ADDRESS
+        SizeInBytes: UINT
+        Format: DXGI_FORMAT
+    }
+}
+
+package "Assets" {
+    struct Vertex {
+        Position: Vector3
+        Normal: Vector3
+        TexCoord: Vector2
+    }
+    struct Submesh {
+        Indices: uint[]
+    }
+    struct Mesh {
+        Name: string
+        Submeshes: Submesh[]
+        Vertices: Vertex[]
+    }
+    struct Texture {
+        FilePath: string
+        Texels: byte[]
+        Width: int
+        Height: int
+    }
+    struct Material {
+        Name: String
+        AlbedoTexture: Texture
+        AOTexture: Texture
+        BumpTexture: Texture
+        ...
+    }
+    database GLTF
+    class AssetLoader {
+        Import(AssetCatalogue)
+    }
+    class AssetCatalogue {
+        AddMesh(Mesh)
+        AddTexture(Texture)
+        AddMaterial(Material)
+        AddDefaultMeshMaterial(Mesh, Material)
+        GetX(string name)
+    }
+    note top of AssetCatalogue: Add-functions require names for objects
+    note right of AssetCatalogue::AddDefaultMeshMaterial
+        Files usually pair meshes and materials
+    end note
+
+    ' Meshes
+    Mesh -[#blue]u-> Submesh
+    Mesh -[#blue]u-> Vertex
+    Submesh::Indices .[#red].> Mesh::Vertices: Indices of
+
+    ' Textures
+    Material::Texture .[#red].> Texture
+
+
+    AssetLoader -[#blue]u-> GLTF: Loads from
+    AssetLoader -[#green]u-> Mesh
+    AssetLoader -[#green]u-> Material
+    AssetLoader -[#green]u-> Texture
+    AssetLoader::Import "Stores instances in" .[#red]r.> AssetCatalogue
+}
+note top of Assets: Asset data with no connection to graphics API
+
+package HLSL {
+    interface Surfaces <<StructuredBuffer>> {
+        diffuseTexture: int
+        albedoTexture: int
+        normalTexture: int
+        aoTexture: int
+        roughnessTexture: int
+        color: float4
+    }
+
+    interface Textures <<Texture[]>> {
+        textures[]: register(t0, space)
+    }
+
+    interface Vertices <<StructuredBuffer>> {
+    }
+
+    interface PerObjectData <<cbuffer>> {
+        transform: float4x4
+        surfaceID: int
+    }
+
+    PerObjectData::surfaceID ..> Surfaces: References index of
+}
+
+package "Models" {
+    struct Submesh {
+        Surface: Surface
+        VIBufferView: VIBufferView
+    }
+    note right of Submesh: Vertex buffer shared between submeshes
+    struct Model {
+        Submeshes: Submesh[]
+    }
+    struct Surface {
+        ID: SurfaceID
+        PSO: PipelineStateObject
+        AlbedoTexture: TextureID
+        Required textures somehow?? Inheritance?
+    }
+    note left of Surface::AlbedoTexture
+        References index in shader SRV array
+    end note
+    Surface::AlbedoTexture ..> Textures::textures: References index of
+    class ModelBuilder {
+        CreateModel(ResourceBuilder, Showroom(?), Model, List<Material>[] submeshMaterials)
+    }
+    class Showroom {
+        AddShowcase(string name, Model)
+    }
+
+    Model -[#blue]u-> Submesh
+
+    ModelBuilder -[#green]u-> Model
+    ModelBuilder -[#green]u-> Surface
+    ModelBuilder::CreateModel "Stores instances in" .[#red]r.> Showroom
+
+    Submesh::Surface .[#red].> Surface
+}
+note top of Models: Asset data after connecting to a graphics API
+
+package Graphics {
+    struct ResourceState {
+        uploadBuffer
+
+        vertexIndexHeap
+        vertexIndexHeapSize
+        vertexIndexHeapUsed
+
+        textureHeap
+        textureHeapSize
+        textureHeapUsed
+
+        constantBufferHeap
+        constantBufferHeapSize
+        constantBufferHeapUsed
+
+        cbvSrvUavDescriptors
+        cbvSrvUavDescriptorsUsed
+
+        vertexBufferResources
+        indexBufferResources
+        textureResources
+        surfaceResources
+
+        viBufferViews
+
+        nameToIndexThing
+    }
+
+    struct VIBufferView {
+        IndexBuffer: ID3D12Resource
+        VertexBuffer: ID3D12Resource
+        IndexStart: int
+        IndexCount: int
+        IndexBufferTotalCount: int
+    }
+    note right of VIBufferView::IndexBuffer
+        Could maybe be a GPU pointer with the correct offset?
+        Would remove need for IndexBufferTotalCount and IndexStart
+    end note
+    note right of VIBufferView::VertexBuffer
+        Only required if multiple vertex buffers are used
+    end note
+
+    VIBufferView::IndexCount ..> DrawIndexedInstance::IndexCountPerInstance: Feeds
+    VIBufferView::IndexStart ..> DrawIndexedInstance::StartIndexLocation: Feeds
+    VIBufferView::IndexBufferTotalCount ..> IASetIndexBuffer::SizeInBytes: Feeds
+    VIBufferView::IndexBuffer ..> IASetIndexBuffer::BufferLocation: Feeds
+
+    VIBufferView::VertexBuffer ..> ResourceState::vertexBufferResources: References
+    VIBufferView::IndexBuffer ..> ResourceState::indexBufferResources: References
+
+    ResourceState::textureResources ...> Textures
+    ResourceState::surfaceResources ...> Surfaces
+    ResourceState::vertexBufferResources ...> Vertices
+
+    class LinearResourceBuilder {
+        VIBufferView CreateVertexIndexBuffer(HeapState, Mesh)
+        TextureID CreateTexture(HeapState, Texture)
+        SurfaceID CreateSurface(HeapState, Surface) ???
+    }
+    note top of LinearResourceBuilder: Handles both heaps and descriptor heaps for simplicity
+
+    LinearResourceBuilder -[#red]-> ResourceState: Uses when building
+    LinearResourceBuilder -[#green]-> VIBufferView
+
+    struct GraphicsState {
+        device
+        queues
+        lists
+        semaphores
+    }
+    class GraphicsBuilder {
+    }
+    GraphicsBuilder -[#green]-> GraphicsState
+
+    Models.Submesh::VIBufferView .[#red].> VIBufferView
+}
+
+
+ModelBuilder .[#red].> LinearResourceBuilder: Uses to create GPU resources
+
+@enduml

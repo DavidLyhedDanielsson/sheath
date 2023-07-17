@@ -13,7 +13,7 @@ public static class GraphicsBuilder
         public required VIBufferView VIBufferView { get; init; }
     };
 
-    public class VertexIndexBuilder
+    /*public class VertexIndexBuilder
     {
         public required GraphicsState GraphicsState { get; init; }
         public required PSOConfig PsoConfig { get; init; }
@@ -144,9 +144,9 @@ public static class GraphicsBuilder
             
             return bufferViews;
         }
-    }
+    }*/
 
-    public class TextureBuilder
+    /*public class TextureBuilder
     {
         public required GraphicsState GraphicsState { get; init; }
         private List<Texture> _textures = new();
@@ -258,15 +258,15 @@ public static class GraphicsBuilder
                 uploadBuffer.Unmap(0);
             }
         }
-    }
+    }*/
 
-    public static VertexIndexBuilder CreateVertexIndexBuffers(GraphicsState state, PSOConfig psoConfig)
+    /*public static VertexIndexBuilder CreateVertexIndexBuffers(GraphicsState state, PSOConfig psoConfig)
     {
         return new VertexIndexBuilder() { GraphicsState = state, PsoConfig = psoConfig };
-    }
+    }*/
 
-    public static TextureBuilder CreateTextures(GraphicsState state)
+    /*public static TextureBuilder CreateTextures(GraphicsState state)
     {
         return new TextureBuilder() { GraphicsState = state };
-    }
+    }*/
 }

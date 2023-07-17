@@ -16,6 +16,7 @@ public class Mesh
     public required Vertex[] Vertices { get; init; }
 }
 
+// TODO: Place in Mesh?
 public class Submesh
 {
     //public required string MaterialName { get; init; }

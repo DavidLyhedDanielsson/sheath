@@ -2,13 +2,9 @@ using ConsoleApp1.Graphics;
 
 namespace ConsoleApp1.Models;
 
-public struct InstanceData
-{
-   public required int SurfaceID { get; init; } 
-}
-
 public class Model
 {
+    // TODO: Place outside of Model?c
     public class Submesh
     {
         public required VIBufferView VIBufferView { get; init; }
