@@ -10,7 +10,7 @@ namespace ConsoleApp1.Graphics;
 public interface IResourceBuilder
 {
     public static abstract VIBufferView CreateVertexIndexBuffer(GraphicsState graphicsState, HeapState heapState, Mesh mesh);
-    public static abstract int CreateTexture(HeapState heapState, Texture texture);
+    public static abstract TextureID CreateTexture(GraphicsState graphicsState, HeapState heapState, Texture texture);
     public static abstract int CreateSurface(HeapState heapState, Surface surface);
     public static abstract Result<HeapState> CreateHeapState(GraphicsState graphicsState);
 }
@@ -27,14 +27,14 @@ public class LinearResourceBuilder : IResourceBuilder
         , HeapState heapState
         , Mesh mesh)
     {
-        var totalVertexCount = mesh.Vertices.Length;
-        var totalIndexCount = mesh.Submeshes.Sum(submesh => submesh.Indices.Length);
+        ulong totalVertexCount = (ulong)mesh.Vertices.Length;
+        ulong totalIndexCount = (ulong)mesh.Submeshes.Sum(submesh => submesh.Indices.Length);
 
-        int vertexByteSize = SizeOf(typeof(Vertex));
-        int verticesByteSize = vertexByteSize * totalVertexCount;
+        ulong vertexByteSize = (ulong)SizeOf(typeof(Vertex));
+        ulong verticesByteSize = vertexByteSize * totalVertexCount;
 
-        var indexByteSize = SizeOf(typeof(uint));
-        int indicesByteSize = indexByteSize * totalIndexCount;
+        ulong indexByteSize = (ulong)SizeOf(typeof(uint));
+        ulong indicesByteSize = indexByteSize * totalIndexCount;
 
         var device = graphicsState.device;
 
@@ -48,8 +48,8 @@ public class LinearResourceBuilder : IResourceBuilder
             {
                 FirstElement = 0,
                 Flags = BufferShaderResourceViewFlags.None,
-                NumElements = totalVertexCount,
-                StructureByteStride = vertexByteSize,
+                NumElements = checked((int)totalVertexCount),
+                StructureByteStride = checked((int)vertexByteSize),
             },
         }, heapState.cbvUavSrvDescriptorHeap.Segments[HeapConfig.Segments.vertexBuffers].NextCpuHandle()
         );
@@ -58,19 +58,18 @@ public class LinearResourceBuilder : IResourceBuilder
 
         unsafe
         {
-
             fixed (void* source = &mesh.Vertices[0])
             {
-                heapState.uploadBuffer.QueueUpload(graphicsState.commandList, vertexBuffer, 0, source, verticesByteSize);
+                heapState.uploadBuffer.QueueBufferUpload(graphicsState.commandList, vertexBuffer, 0, source, verticesByteSize);
             }
 
-            int offset = 0;
+            ulong offset = 0;
             foreach (var submesh in mesh.Submeshes)
             {
-                var submeshIndicesByteSize = submesh.Indices.Length * indexByteSize;
+                ulong submeshIndicesByteSize = (ulong)submesh.Indices.Length * indexByteSize;
                 fixed (void* source = &submesh.Indices[0])
                 {
-                    heapState.uploadBuffer.QueueUpload(graphicsState.commandList, indexBuffer, offset, source, submeshIndicesByteSize);
+                    heapState.uploadBuffer.QueueBufferUpload(graphicsState.commandList, indexBuffer, offset, source, submeshIndicesByteSize);
                 }
                 offset += submeshIndicesByteSize;
             }
@@ -93,14 +92,47 @@ public class LinearResourceBuilder : IResourceBuilder
             VertexBuffer = vertexBuffer,
             IndexBuffer = indexBuffer,
             IndexStart = 0,
-            IndexCount = totalIndexCount,
-            IndexBufferTotalCount = totalIndexCount,
+            IndexCount = checked((int)totalIndexCount),
+            IndexBufferTotalCount = checked((int)totalIndexCount),
         };
     }
 
-    public static int CreateTexture(HeapState heapState, Texture texture)
+    public static TextureID CreateTexture(GraphicsState graphicsState, HeapState heapState, Texture texture)
     {
-        throw new NotImplementedException();
+        ID3D12Resource resource = heapState.textureHeap.AppendTexture2D(
+            graphicsState.device
+            , ResourceDescription.Texture2D(Format.R8G8B8A8_UNorm, (uint)texture.Width, (uint)texture.Height, 1, 1)
+        );
+        graphicsState.device.CreateShaderResourceView(resource,
+            new ShaderResourceViewDescription
+            {
+                Format = Format.R8G8B8A8_UNorm,
+                ViewDimension = ShaderResourceViewDimension.Texture2D,
+                Shader4ComponentMapping = ShaderComponentMapping.Default,
+                Texture2D = new Texture2DShaderResourceView
+                {
+                    MostDetailedMip = 0,
+                    MipLevels = 1,
+                    PlaneSlice = 0,
+                    ResourceMinLODClamp = 0.0f,
+                },
+            },
+            heapState.cbvUavSrvDescriptorHeap.Segments[HeapConfig.Segments.textures].NextCpuHandle()
+        );
+
+        unsafe
+        {
+            heapState.uploadBuffer.QueueTextureUpload(graphicsState.commandList, resource, texture);
+        }
+
+        // TODO: Can't be here if the data is queued for copying
+        graphicsState.commandList.ResourceBarrierTransition(
+            resource
+            , ResourceStates.CopyDest
+            , ResourceStates.AllShaderResource
+        );
+
+        return new TextureID { ID = 0 };
     }
 
     public static int CreateSurface(HeapState heapState, Surface surface)
@@ -179,11 +211,6 @@ public class LinearResourceBuilder : IResourceBuilder
             textureHeap = textureHeap,
             constantBufferHeap = constantBufferHeap,
             cbvUavSrvDescriptorHeap = descriptorHeap,
-            vertexBuffers = new(),
-            indexBuffers = new(),
-            textures = new(),
-            surfaces = new(),
-            viBufferViews = new(),
         };
     }
 }

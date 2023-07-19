@@ -148,32 +148,14 @@ package "Models" {
 note top of Models: Asset data after connecting to a graphics API
 
 package Graphics {
-    struct ResourceState {
+    struct HeapState {
         uploadBuffer
-
-        vertexIndexHeap
-        vertexIndexHeapSize
-        vertexIndexHeapUsed
-
+        uploadHeap
+        vertexHeap
+        indexHeap
         textureHeap
-        textureHeapSize
-        textureHeapUsed
-
         constantBufferHeap
-        constantBufferHeapSize
-        constantBufferHeapUsed
-
-        cbvSrvUavDescriptors
-        cbvSrvUavDescriptorsUsed
-
-        vertexBufferResources
-        indexBufferResources
-        textureResources
-        surfaceResources
-
-        viBufferViews
-
-        nameToIndexThing
+        cbvUavSrvDescriptorHeap
     }
 
     struct VIBufferView {
@@ -196,12 +178,9 @@ package Graphics {
     VIBufferView::IndexBufferTotalCount ..> IASetIndexBuffer::SizeInBytes: Feeds
     VIBufferView::IndexBuffer ..> IASetIndexBuffer::BufferLocation: Feeds
 
-    VIBufferView::VertexBuffer ..> ResourceState::vertexBufferResources: References
-    VIBufferView::IndexBuffer ..> ResourceState::indexBufferResources: References
-
-    ResourceState::textureResources ...> Textures
-    ResourceState::surfaceResources ...> Surfaces
-    ResourceState::vertexBufferResources ...> Vertices
+    struct TextureID {
+        id: int
+    }
 
     class LinearResourceBuilder {
         VIBufferView CreateVertexIndexBuffer(HeapState, Mesh)
@@ -210,8 +189,9 @@ package Graphics {
     }
     note top of LinearResourceBuilder: Handles both heaps and descriptor heaps for simplicity
 
-    LinearResourceBuilder -[#red]-> ResourceState: Uses when building
+    LinearResourceBuilder -[#red]-> HeapState: Uses when building
     LinearResourceBuilder -[#green]-> VIBufferView
+    LinearResourceBuilder -[#green]-> TextureID
 
     struct GraphicsState {
         device
@@ -224,6 +204,10 @@ package Graphics {
     GraphicsBuilder -[#green]-> GraphicsState
 
     Models.Submesh::VIBufferView .[#red].> VIBufferView
+
+    class PSOBuilder {
+
+    }
 }
 
 

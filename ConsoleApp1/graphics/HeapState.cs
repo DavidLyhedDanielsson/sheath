@@ -48,6 +48,27 @@ internal class Heap
         Debug.Assert(size > 0);
         return AppendBuffer(device, (ulong)size, initialState);
     }
+
+    public ID3D12Resource AppendTexture2D(
+        ID3D12Device device
+        , ResourceDescription resourceDescription
+        , ResourceStates initialState = ResourceStates.CopyDest
+    )
+    {
+        ResourceAllocationInfo allocationInfo = device.GetResourceAllocationInfo(
+            new ResourceDescription[] { resourceDescription }
+        );
+        ID3D12Resource resource = device.CreatePlacedResource<ID3D12Resource>(
+            ID3D12Heap
+            , Used
+            , resourceDescription
+            , initialState
+        );
+
+        Used += allocationInfo.SizeInBytes;
+
+        return resource;
+    }
 }
 
 internal class DescriptorHeapSegment
@@ -115,10 +136,4 @@ public class HeapState
     internal Heap textureHeap;
     internal Heap constantBufferHeap;
     internal DescriptorHeap cbvUavSrvDescriptorHeap;
-    // TODO: Unused?
-    internal List<ID3D12Resource> vertexBuffers;
-    internal List<ID3D12Resource> indexBuffers;
-    internal List<ID3D12Resource> textures;
-    internal List<ID3D12Resource> surfaces;
-    internal List<VIBufferView> viBufferViews;
 }

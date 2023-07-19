@@ -12,7 +12,13 @@ struct Vertex {
 };
 
 float4 main(Vertex vertex) : SV_TARGET {
-    //float4 colour = float4(textures[0].Sample(samp, vertex.texCoords).xyz, 1.0f);
-    float4 colour = float4(vertex.normal * 0.5f + 0.5f, 1.0f);
+    #ifdef RENDER_WHITE
+    float4 colour = float4(1.0f, 1.0f, 1.0f, 1.0f);
+    #else
+    //float4 colour = float4(vertex.normal * 0.5f + 0.5f, 1.0f);
+    #endif
+
+    float4 colour = float4(textures[1].Sample(samp, vertex.texCoords).xyz, 1.0f);
+
     return colour;
 }

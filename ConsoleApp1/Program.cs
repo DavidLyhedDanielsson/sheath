@@ -101,6 +101,11 @@ namespace ConsoleApp1
                 return -3;
             var heapState = heapResult.Value;
 
+            assetCatalogue.ForEachMaterial(material =>
+            {
+                LinearResourceBuilder.CreateTexture(graphicsState, heapState, material.Albedo);
+            });
+
             assetCatalogue.ForEachDefaultMaterial((Mesh mesh, string[] materials) =>
             {
                 if (!loadCycle.Contains(mesh.Name))

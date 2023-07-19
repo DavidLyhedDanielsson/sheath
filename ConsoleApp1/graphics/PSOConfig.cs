@@ -12,9 +12,9 @@ public class PSOConfig
     {
         PSOConfig pso = new PSOConfig();
 
-        var vertexShader = Graphics.Utils.CompileVertexShader("ndc_triangle.hlsl").LogIfFailed().Value;
-        var pixelShader = Graphics.Utils.CompilePixelShader("white.hlsl").LogIfFailed().Value;
-        
+        var vertexShader = Graphics.Utils.CompileVertexShader("vertex.hlsl").LogIfFailed().Value;
+        var pixelShader = Graphics.Utils.CompilePixelShader("pixel.hlsl").LogIfFailed().Value;
+
         pso.NdcTriangle = device.CreateGraphicsPipelineState(new GraphicsPipelineStateDescription
         {
             RootSignature = rootSignature,
