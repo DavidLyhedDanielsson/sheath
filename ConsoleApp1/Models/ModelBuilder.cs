@@ -1,12 +1,13 @@
 using System.Diagnostics;
 using ConsoleApp1.Asset;
 using ConsoleApp1.Models;
+using Vortice.DXGI;
 
 namespace ConsoleApp1.Graphics;
 
 public static class ModelBuilder
 {
-    public static Model CreateModel(GraphicsState graphicsState, HeapState heapState, AssetCatalogue catalogue, Mesh mesh, List<Material>[] submeshMaterials)
+    public static Model CreateModel(GraphicsState graphicsState, HeapState heapState, Dictionary<Texture, TextureID> textureIds, Mesh mesh, List<Material>[] submeshMaterials)
     {
         Debug.Assert(submeshMaterials.Length == mesh.Submeshes.Length);
 
@@ -18,6 +19,8 @@ public static class ModelBuilder
         for (int i = 0; i < mesh.Submeshes.Length; ++i)
         {
             Material material = submeshMaterials[i][0];
+
+            Debug.Assert(textureIds.TryGetValue(material.Albedo, out TextureID? albedoTextureId));
 
             submeshes[i] = new Model.Submesh
             {
@@ -33,7 +36,7 @@ public static class ModelBuilder
                 {
                     // TODO
                     ID = 0,
-                    AlbedoTexture = 0,
+                    AlbedoTexture = albedoTextureId!,
                     PSO = null,
                 }
             };

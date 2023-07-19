@@ -12,6 +12,7 @@ struct VertexOut {
 
 cbuffer instanceData: register(b0, space0) {
     int vertexBufferID;
+    int surfaceID;
 }
 cbuffer cameraBuffer: register(b1, space0) {
     float4x4 projMatrix;

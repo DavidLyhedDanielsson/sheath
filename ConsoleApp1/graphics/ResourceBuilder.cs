@@ -103,6 +103,8 @@ public class LinearResourceBuilder : IResourceBuilder
             graphicsState.device
             , ResourceDescription.Texture2D(Format.R8G8B8A8_UNorm, (uint)texture.Width, (uint)texture.Height, 1, 1)
         );
+
+        int textureId = heapState.cbvUavSrvDescriptorHeap.Segments[HeapConfig.Segments.textures].Used;
         graphicsState.device.CreateShaderResourceView(resource,
             new ShaderResourceViewDescription
             {
@@ -132,7 +134,7 @@ public class LinearResourceBuilder : IResourceBuilder
             , ResourceStates.AllShaderResource
         );
 
-        return new TextureID { ID = 0 };
+        return new TextureID { ID = textureId };
     }
 
     public static int CreateSurface(HeapState heapState, Surface surface)

@@ -101,9 +101,13 @@ namespace ConsoleApp1
                 return -3;
             var heapState = heapResult.Value;
 
+            // TODO: This should live somewhere
+            Dictionary<Texture, TextureID> textureIds = new();
+
             assetCatalogue.ForEachMaterial(material =>
             {
-                LinearResourceBuilder.CreateTexture(graphicsState, heapState, material.Albedo);
+                TextureID textureId = LinearResourceBuilder.CreateTexture(graphicsState, heapState, material.Albedo);
+                textureIds.Add(material.Albedo, textureId);
             });
 
             assetCatalogue.ForEachDefaultMaterial((Mesh mesh, string[] materials) =>
@@ -121,7 +125,7 @@ namespace ConsoleApp1
                     mats[i].Add(material);
                 }
 
-                Model model = ModelBuilder.CreateModel(graphicsState, heapState, assetCatalogue, mesh, mats);
+                Model model = ModelBuilder.CreateModel(graphicsState, heapState, textureIds, mesh, mats);
 
                 showroom.AddShowcase(mesh.Name, model);
             });
@@ -203,19 +207,25 @@ namespace ConsoleApp1
 
                 int modelIndex = (uptime.Elapsed.Seconds / 3) % modelCycle.Length;
                 Model model = showroom.GetShowcase(modelCycle[modelIndex])!.Model;
-                unsafe
-                {
-                    byte* data;
-                    graphicsState.instanceBuffer.Map(0, (void**)&data);
-                    Buffer.MemoryCopy(&modelIndex, data, 4, 4);
-                    graphicsState.instanceBuffer.Unmap(0);
-                }
 
-                for (int i = 0; i < model.Submeshes.Length; ++i)
+                for (int submeshI = 0; submeshI < model.Submeshes.Length; ++submeshI)
                 {
-                    var submesh = model.Submeshes[i];
+                    var submesh = model.Submeshes[submeshI];
 
-                    commandList.SetGraphicsRootConstantBufferView(0, graphicsState.instanceBuffer.GPUVirtualAddress);
+                    unsafe
+                    {
+                        var id = submesh.Surface.AlbedoTexture.ID;
+
+                        byte* data;
+                        graphicsState.instanceBuffer.Map(0, (void**)&data);
+                        data += submeshI * 256;
+
+                        Buffer.MemoryCopy(&modelIndex, data, 4, 4);
+                        Buffer.MemoryCopy(&id, data + 4, 4, 4);
+                        graphicsState.instanceBuffer.Unmap(0);
+                    }
+
+                    commandList.SetGraphicsRootConstantBufferView(0, graphicsState.instanceBuffer.GPUVirtualAddress + (ulong)(submeshI * 256));
                     commandList.IASetIndexBuffer(new IndexBufferView(submesh.VIBufferView.IndexBuffer.GPUVirtualAddress, submesh.VIBufferView.IndexBufferTotalCount * SizeOf(typeof(uint)), Vortice.DXGI.Format.R32_UInt));
                     commandList.DrawIndexedInstanced(submesh.VIBufferView.IndexCount, 1, submesh.VIBufferView.IndexStart, 0, 0);
                 }
