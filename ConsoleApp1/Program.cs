@@ -60,11 +60,6 @@ namespace ConsoleApp1
                 return -2;
             GraphicsState graphicsState = graphicsStateResult.Value;
 
-            var psoResult = PSOConfig.Create(settings, graphicsState.device, graphicsState.rootSignature).LogIfFailed();
-            if (psoResult.IsFailed)
-                return -3;
-            PSOConfig psoConfig = psoResult.Value;
-
             var loadCycle = new string[]
             {
                 "MapleTree_1",
@@ -101,33 +96,43 @@ namespace ConsoleApp1
                 return -3;
             var heapState = heapResult.Value;
 
-            // TODO: This should live somewhere
-            Dictionary<Texture, TextureID> textureIds = new();
+            // TODO: these should live somewhere
+            Dictionary<string, Texture> textureNames = new();
+            Dictionary<string, Surface> surfaceNames = new();
+            Dictionary<string, Mesh> meshNames = new();
+
+            assetCatalogue.ForEachTextureData(textureData =>
+            {
+                Texture texture = LinearResourceBuilder.CreateTexture(graphicsState, heapState, textureData);
+                textureNames.Add(textureData.FilePath, texture);
+            });
 
             assetCatalogue.ForEachMaterial(material =>
             {
-                TextureID textureId = LinearResourceBuilder.CreateTexture(graphicsState, heapState, material.Albedo);
-                textureIds.Add(material.Albedo, textureId);
+                Surface surface = LinearResourceBuilder.CreateSurface(settings, graphicsState, heapState, material, textureNames);
+                surfaceNames.Add(material.Name, surface);
             });
 
-            assetCatalogue.ForEachDefaultMaterial((Mesh mesh, string[] materials) =>
+            assetCatalogue.ForEachVertexData(vertexData =>
             {
-                if (!loadCycle.Contains(mesh.Name))
+                Mesh mesh = LinearResourceBuilder.CreateMesh(graphicsState, heapState, vertexData);
+                meshNames.Add(vertexData.Name, mesh);
+            });
+
+            assetCatalogue.ForEachDefaultMaterial((string vertexDataId, string[] materials) =>
+            {
+                if (!loadCycle.Contains(vertexDataId))
                     return;
 
-                List<Material>[] mats = new List<Material>[materials.Length];
+                Surface[] surfaces = new Surface[materials.Length];
                 for (int i = 0; i < materials.Length; ++i)
-                {
-                    mats[i] = new();
+                    Debug.Assert(surfaceNames.TryGetValue(materials[i], out surfaces[i]));
 
-                    Material? material = assetCatalogue.GetMaterial(materials[i]);
-                    Debug.Assert(material != null);
-                    mats[i].Add(material);
-                }
+                Debug.Assert(meshNames.TryGetValue(vertexDataId, out Mesh? mesh));
 
-                Model model = ModelBuilder.CreateModel(graphicsState, heapState, textureIds, mesh, mats);
+                Model model = ModelBuilder.CreateModel(mesh, surfaces);
 
-                showroom.AddShowcase(mesh.Name, model);
+                showroom.AddShowcase(vertexDataId, model);
             });
 
             ID3D12Resource cameraBuffer = graphicsState.device.CreateCommittedResource(HeapType.Upload,
@@ -186,7 +191,7 @@ namespace ConsoleApp1
 
                 var commandList = graphicsState.commandList;
                 graphicsState.commandAllocator.Reset();
-                commandList.Reset(graphicsState.commandAllocator, psoConfig.NdcTriangle);
+                commandList.Reset(graphicsState.commandAllocator);
 
                 var frameIndex = (int)(graphicsState.frameCount % 3);
 
@@ -207,6 +212,8 @@ namespace ConsoleApp1
 
                 int modelIndex = (uptime.Elapsed.Seconds / 3) % modelCycle.Length;
                 Model model = showroom.GetShowcase(modelCycle[modelIndex])!.Model;
+
+                commandList.SetPipelineState(model.Submeshes[0].Surface.PSO);
 
                 for (int submeshI = 0; submeshI < model.Submeshes.Length; ++submeshI)
                 {

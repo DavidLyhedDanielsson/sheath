@@ -2,23 +2,21 @@ using System.Numerics;
 
 namespace ConsoleApp1.Asset;
 
-public struct Vertex
+public readonly struct Vertex
 {
     public required Vector3 Position { get; init; }
     public required Vector3 Normal { get; init; }
     public required Vector2 TextureCoordinates { get; init; }
 }
 
-public class Mesh
+public class VertexData
 {
     public required string Name { get; init; }
     public required Submesh[] Submeshes { get; init; }
     public required Vertex[] Vertices { get; init; }
 }
 
-// TODO: Place in Mesh?
 public class Submesh
 {
-    //public required string MaterialName { get; init; }
     public required uint[] Indices { get; init; }
 }

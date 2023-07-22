@@ -1,3 +1,4 @@
+using System.Diagnostics;
 using ConsoleApp1.Asset;
 using ConsoleApp1.Models;
 using FluentResults;
@@ -9,26 +10,21 @@ namespace ConsoleApp1.Graphics;
 
 public interface IResourceBuilder
 {
-    public static abstract VIBufferView CreateVertexIndexBuffer(GraphicsState graphicsState, HeapState heapState, Mesh mesh);
-    public static abstract TextureID CreateTexture(GraphicsState graphicsState, HeapState heapState, Texture texture);
-    public static abstract int CreateSurface(HeapState heapState, Surface surface);
+    public static abstract Mesh CreateMesh(GraphicsState graphicsState, HeapState heapState, VertexData mesh);
+    public static abstract Texture CreateTexture(GraphicsState graphicsState, HeapState heapState, TextureData texture);
+    public static abstract Surface CreateSurface(Settings settings, GraphicsState graphicsState, HeapState heapState, Material material, Dictionary<string, Texture> textures);
     public static abstract Result<HeapState> CreateHeapState(GraphicsState graphicsState);
 }
 
 public class LinearResourceBuilder : IResourceBuilder
 {
-    /*public const int descriptorHeapCBV = 0;
-    public const int descriptorHeapTexture = 1;
-    public const int descriptorHeapVertex = 2;
-    public const int descriptorHeapSurface = 3;*/
-
-    public static VIBufferView CreateVertexIndexBuffer(
+    public static Mesh CreateMesh(
         GraphicsState graphicsState
         , HeapState heapState
-        , Mesh mesh)
+        , VertexData vertexData)
     {
-        ulong totalVertexCount = (ulong)mesh.Vertices.Length;
-        ulong totalIndexCount = (ulong)mesh.Submeshes.Sum(submesh => submesh.Indices.Length);
+        ulong totalVertexCount = (ulong)vertexData.Vertices.Length;
+        ulong totalIndexCount = (ulong)vertexData.Submeshes.Sum(submesh => submesh.Indices.Length);
 
         ulong vertexByteSize = (ulong)SizeOf(typeof(Vertex));
         ulong verticesByteSize = vertexByteSize * totalVertexCount;
@@ -56,15 +52,19 @@ public class LinearResourceBuilder : IResourceBuilder
 
         ID3D12Resource indexBuffer = heapState.indexHeap.AppendBuffer(device, indicesByteSize);
 
+        List<VIBufferView> viBufferViews = new(vertexData.Submeshes.Length);
+
         unsafe
         {
-            fixed (void* source = &mesh.Vertices[0])
+            fixed (void* source = &vertexData.Vertices[0])
             {
                 heapState.uploadBuffer.QueueBufferUpload(graphicsState.commandList, vertexBuffer, 0, source, verticesByteSize);
             }
 
+            int indexStart = 0;
+
             ulong offset = 0;
-            foreach (var submesh in mesh.Submeshes)
+            foreach (var submesh in vertexData.Submeshes)
             {
                 ulong submeshIndicesByteSize = (ulong)submesh.Indices.Length * indexByteSize;
                 fixed (void* source = &submesh.Indices[0])
@@ -72,6 +72,17 @@ public class LinearResourceBuilder : IResourceBuilder
                     heapState.uploadBuffer.QueueBufferUpload(graphicsState.commandList, indexBuffer, offset, source, submeshIndicesByteSize);
                 }
                 offset += submeshIndicesByteSize;
+
+                viBufferViews.Add(new VIBufferView
+                {
+                    VertexBuffer = vertexBuffer,
+                    IndexBuffer = indexBuffer,
+                    IndexStart = indexStart,
+                    IndexCount = checked(submesh.Indices.Length),
+                    IndexBufferTotalCount = checked((int)totalIndexCount),
+                });
+
+                indexStart += submesh.Indices.Length;
             }
         }
 
@@ -87,21 +98,17 @@ public class LinearResourceBuilder : IResourceBuilder
             , ResourceStates.IndexBuffer
         );
 
-        return new VIBufferView
+        return new Mesh
         {
-            VertexBuffer = vertexBuffer,
-            IndexBuffer = indexBuffer,
-            IndexStart = 0,
-            IndexCount = checked((int)totalIndexCount),
-            IndexBufferTotalCount = checked((int)totalIndexCount),
+            BufferViews = viBufferViews.ToArray()
         };
     }
 
-    public static TextureID CreateTexture(GraphicsState graphicsState, HeapState heapState, Texture texture)
+    public static Texture CreateTexture(GraphicsState graphicsState, HeapState heapState, TextureData textureData)
     {
         ID3D12Resource resource = heapState.textureHeap.AppendTexture2D(
             graphicsState.device
-            , ResourceDescription.Texture2D(Format.R8G8B8A8_UNorm, (uint)texture.Width, (uint)texture.Height, 1, 1)
+            , ResourceDescription.Texture2D(Format.R8G8B8A8_UNorm, (uint)textureData.Width, (uint)textureData.Height, 1, 1)
         );
 
         int textureId = heapState.cbvUavSrvDescriptorHeap.Segments[HeapConfig.Segments.textures].Used;
@@ -124,7 +131,7 @@ public class LinearResourceBuilder : IResourceBuilder
 
         unsafe
         {
-            heapState.uploadBuffer.QueueTextureUpload(graphicsState.commandList, resource, texture);
+            heapState.uploadBuffer.QueueTextureUpload(graphicsState.commandList, resource, textureData);
         }
 
         // TODO: Can't be here if the data is queued for copying
@@ -134,12 +141,62 @@ public class LinearResourceBuilder : IResourceBuilder
             , ResourceStates.AllShaderResource
         );
 
-        return new TextureID { ID = textureId };
+        return new Texture { ID = textureId };
     }
 
-    public static int CreateSurface(HeapState heapState, Surface surface)
+    public static Surface CreateSurface(Settings settings, GraphicsState graphicsState, HeapState heapState, Material material, Dictionary<string, Texture> textures)
     {
-        throw new NotImplementedException();
+        var vertexShader = Graphics.Utils.CompileVertexShader("vertex.hlsl").LogIfFailed().Value;
+        var pixelShader = Graphics.Utils.CompilePixelShader("pixel.hlsl").LogIfFailed().Value;
+
+        var pso = graphicsState.device.CreateGraphicsPipelineState(new GraphicsPipelineStateDescription
+        {
+            RootSignature = graphicsState.rootSignature,
+            VertexShader = vertexShader.GetObjectBytecodeMemory(),
+            PixelShader = pixelShader.GetObjectBytecodeMemory(),
+            DomainShader = null,
+            HullShader = null,
+            GeometryShader = null,
+            StreamOutput = null,
+            BlendState = BlendDescription.Opaque,
+            SampleMask = uint.MaxValue,
+            RasterizerState = new RasterizerDescription
+            {
+                FillMode = FillMode.Solid,
+                CullMode = CullMode.Back,
+                FrontCounterClockwise = true,
+                DepthBias = 0,
+                DepthBiasClamp = 0,
+                SlopeScaledDepthBias = 0,
+                DepthClipEnable = false,
+                MultisampleEnable = false,
+                AntialiasedLineEnable = false,
+                ForcedSampleCount = 0,
+                ConservativeRaster = ConservativeRasterizationMode.Off
+            },
+            DepthStencilState = DepthStencilDescription.None,
+            InputLayout = null,
+            IndexBufferStripCutValue = IndexBufferStripCutValue.Disabled,
+            PrimitiveTopologyType = PrimitiveTopologyType.Triangle,
+            RenderTargetFormats = new Format[]
+            {
+                settings.Graphics.BackBufferFormat,
+            },
+            DepthStencilFormat = settings.Graphics.DepthStencilFormat,
+            SampleDescription = SampleDescription.Default,
+            NodeMask = 0,
+            CachedPSO = default,
+            Flags = PipelineStateFlags.None
+        });
+
+        Debug.Assert(textures.TryGetValue(material.AlbedoTexture, out Texture? albedoTexture));
+
+        return new Surface
+        {
+            ID = 0,
+            PSO = pso,
+            AlbedoTexture = albedoTexture,
+        };
     }
 
     public static Result<HeapState> CreateHeapState(GraphicsState graphicsState)

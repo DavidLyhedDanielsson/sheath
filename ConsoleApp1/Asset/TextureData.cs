@@ -1,6 +1,6 @@
 namespace ConsoleApp1.Asset;
 
-public class Texture
+public class TextureData
 {
     public required string FilePath { get; init; }
     public required byte[] Texels { get; init; }

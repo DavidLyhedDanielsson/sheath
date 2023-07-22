@@ -27,9 +27,9 @@ class BufferUploadTask : UploadTask
 
 class TextureUploadTask : UploadTask
 {
-    public required Texture Texture { get; init; }
+    public required TextureData Texture { get; init; }
 
-    unsafe public void Deconstruct(out ID3D12Resource targetResource, out Texture texture)
+    unsafe public void Deconstruct(out ID3D12Resource targetResource, out TextureData texture)
     {
         targetResource = TargetResource;
         texture = Texture;
@@ -63,7 +63,7 @@ class LinearUploader
         return _currentOffset += dataLength;
     }
 
-    private unsafe ulong DoTextureUpload(ID3D12GraphicsCommandList commandList, ID3D12Resource target, Texture texture)
+    private unsafe ulong DoTextureUpload(ID3D12GraphicsCommandList commandList, ID3D12Resource target, TextureData texture)
     {
         var offset = _currentOffset;
         var startOffset = offset;
@@ -124,7 +124,7 @@ class LinearUploader
         _currentOffset = DoBufferUpload(commandList, targetResource, targetOffset, data, dataLength);
     }
 
-    public unsafe void QueueTextureUpload(ID3D12GraphicsCommandList commandList, ID3D12Resource targetResource, Texture texture)
+    public unsafe void QueueTextureUpload(ID3D12GraphicsCommandList commandList, ID3D12Resource targetResource, TextureData texture)
     {
         ulong alignment = D3D12.TextureDataPitchAlignment;
         ulong rowByteSize = ((ulong)texture.Width * 4 + alignment - 1) / alignment * alignment;

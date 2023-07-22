@@ -2,67 +2,73 @@ namespace ConsoleApp1.Asset;
 
 public class AssetCatalogue
 {
-    private Dictionary<string, Mesh> _meshes = new();
+    private Dictionary<string, VertexData> _meshes = new();
     private Dictionary<string, Material> _materials = new();
-    private Dictionary<string, Texture> _textures = new();
+    private Dictionary<string, TextureData> _textures = new();
     // One string per submesh
-    private Dictionary<Mesh, string[]> _defaultMeshMaterials = new();
+    private Dictionary<string, string[]> _defaultMaterials = new();
 
-    public bool HasMesh(string name)
+    public bool HasVertexData(string vertexDataId)
     {
-        return _meshes.ContainsKey(name);
+        return _meshes.ContainsKey(vertexDataId);
     }
 
-    public Mesh? GetMesh(string name)
+    public VertexData? GetVertexData(string vertexDataId)
     {
-        _meshes.TryGetValue(name, out var mesh);
+        _meshes.TryGetValue(vertexDataId, out var mesh);
         return mesh;
     }
 
-    public void AddMesh(Mesh mesh)
+    public void AddVertexData(VertexData vertexDataId)
     {
-        _meshes.Add(mesh.Name, mesh);
+        _meshes.Add(vertexDataId.Name, vertexDataId);
     }
 
-    public void AddMaterial(Material material)
+    public void AddMaterial(Material materialId)
     {
-        _materials.Add(material.Name, material);
+        _materials.Add(materialId.Name, materialId);
     }
 
-    public Material? GetMaterial(string name)
+    public Material? GetMaterial(string materialId)
     {
-        _materials.TryGetValue(name, out var material);
+        _materials.TryGetValue(materialId, out var material);
         return material;
     }
 
-    public bool HasTexture(string filePath)
+    public bool HasTexture(string textureId)
     {
-        return _textures.ContainsKey(filePath);
+        return _textures.ContainsKey(textureId);
     }
 
-    public void AddTexture(Texture texture)
+    public void AddTexture(TextureData textureDataId)
     {
-        _textures.Add(texture.FilePath, texture);
+        _textures.Add(textureDataId.FilePath, textureDataId);
     }
 
-    public Texture? GetTexture(string filePath)
+    public TextureData? GetTextureData(string textureDataId)
     {
-        _textures.TryGetValue(filePath, out var texture);
+        _textures.TryGetValue(textureDataId, out var texture);
         return texture;
     }
 
-    public void AddDefaultMaterial(Mesh mesh, string[] submeshMaterials)
+    public void AddDefaultMaterial(string vertexDataId, string[] submeshMaterials)
     {
-        _defaultMeshMaterials.Add(mesh, submeshMaterials);
+        _defaultMaterials.Add(vertexDataId, submeshMaterials);
     }
 
-    public string[]? GetDefaultMaterials(Mesh mesh)
+    public string[]? GetDefaultMaterials(string vertexDataId)
     {
-        _defaultMeshMaterials.TryGetValue(mesh, out var material);
+        _defaultMaterials.TryGetValue(vertexDataId, out var material);
         return material;
     }
 
-    public void ForEachMesh(Action<Mesh> action)
+    public void ForEachTextureData(Action<TextureData> action)
+    {
+        foreach (var textureData in _textures.Values)
+            action(textureData);
+    }
+
+    public void ForEachVertexData(Action<VertexData> action)
     {
         foreach (var mesh in _meshes.Values)
             action(mesh);
@@ -74,9 +80,10 @@ public class AssetCatalogue
             action(materials);
     }
 
-    public void ForEachDefaultMaterial(Action<Mesh, string[]> action)
+    // mesh, material
+    public void ForEachDefaultMaterial(Action<string, string[]> action)
     {
-        foreach (var pair in _defaultMeshMaterials)
+        foreach (var pair in _defaultMaterials)
             action(pair.Key, pair.Value);
     }
 }

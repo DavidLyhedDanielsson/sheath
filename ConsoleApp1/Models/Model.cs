@@ -4,7 +4,7 @@ namespace ConsoleApp1.Models;
 
 public class Model
 {
-    // TODO: Place outside of Model?c
+    // TODO: Place outside of Model?
     public class Submesh
     {
         public required VIBufferView VIBufferView { get; init; }

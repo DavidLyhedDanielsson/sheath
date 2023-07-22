@@ -35,12 +35,12 @@ package "Assets" {
     struct Submesh {
         Indices: uint[]
     }
-    struct Mesh {
+    struct VertexData {
         Name: string
         Submeshes: Submesh[]
         Vertices: Vertex[]
     }
-    struct Texture {
+    struct TextureData {
         FilePath: string
         Texels: byte[]
         Width: int
@@ -48,41 +48,45 @@ package "Assets" {
     }
     struct Material {
         Name: String
-        AlbedoTexture: Texture
-        AOTexture: Texture
-        BumpTexture: Texture
+        AlbedoTexture: String
+        AOTexture: String
+        BumpTexture: String
         ...
     }
+    Material::AlbedoTexture .> TextureData::FilePath
+    Material::AOTexture .> TextureData::FilePath
+    Material::BumpTexture .> TextureData::FilePath
+
     database GLTF
     class AssetLoader {
-        Import(AssetCatalogue)
+        Import(AssetCatalogue, Callbacks)
     }
-    class AssetCatalogue {
-        AddMesh(Mesh)
-        AddTexture(Texture)
-        AddMaterial(Material)
-        AddDefaultMeshMaterial(Mesh, Material)
-        GetX(string name)
-    }
-    note top of AssetCatalogue: Add-functions require names for objects
-    note right of AssetCatalogue::AddDefaultMeshMaterial
-        Files usually pair meshes and materials
-    end note
+    ' class AssetCatalogue {
+    '     AddVertexData(VertexData)
+    '     AddTextureData(TextureData)
+    '     AddMaterial(Material)
+    '     AddDefaultMeshMaterial(VertexData, Material) ??
+    '     GetX(string name)
+    ' }
+    ' note top of AssetCatalogue: Add-functions require names for objects
+    ' note right of AssetCatalogue::AddDefaultMeshMaterial
+    '     Files usually pair meshes and materials
+    ' end note
 
     ' Meshes
-    Mesh -[#blue]u-> Submesh
-    Mesh -[#blue]u-> Vertex
-    Submesh::Indices .[#red].> Mesh::Vertices: Indices of
+    VertexData -[#blue]u-> Submesh
+    VertexData -[#blue]u-> Vertex
+    Submesh::Indices .[#red].> VertexData::Vertices: Indices of
 
     ' Textures
-    Material::Texture .[#red].> Texture
-
+    ' TODO: Strings as identifiers?
+    ' Material::TextureData .[#red].> TextureData
 
     AssetLoader -[#blue]u-> GLTF: Loads from
-    AssetLoader -[#green]u-> Mesh
+    AssetLoader -[#green]u-> VertexData
     AssetLoader -[#green]u-> Material
-    AssetLoader -[#green]u-> Texture
-    AssetLoader::Import "Stores instances in" .[#red]r.> AssetCatalogue
+    AssetLoader -[#green]u-> TextureData
+    ' AssetLoader::Import "Stores instances in" .[#red]r.> AssetCatalogue
 }
 note top of Assets: Asset data with no connection to graphics API
 
@@ -111,42 +115,6 @@ package HLSL {
     PerObjectData::surfaceID ..> Surfaces: References index of
 }
 
-package "Models" {
-    struct Submesh {
-        Surface: Surface
-        VIBufferView: VIBufferView
-    }
-    note right of Submesh: Vertex buffer shared between submeshes
-    struct Model {
-        Submeshes: Submesh[]
-    }
-    struct Surface {
-        ID: SurfaceID
-        PSO: PipelineStateObject
-        AlbedoTexture: TextureID
-        Required textures somehow?? Inheritance?
-    }
-    note left of Surface::AlbedoTexture
-        References index in shader SRV array
-    end note
-    Surface::AlbedoTexture ..> Textures::textures: References index of
-    class ModelBuilder {
-        CreateModel(ResourceBuilder, Showroom(?), Model, List<Material>[] submeshMaterials)
-    }
-    class Showroom {
-        AddShowcase(string name, Model)
-    }
-
-    Model -[#blue]u-> Submesh
-
-    ModelBuilder -[#green]u-> Model
-    ModelBuilder -[#green]u-> Surface
-    ModelBuilder::CreateModel "Stores instances in" .[#red]r.> Showroom
-
-    Submesh::Surface .[#red].> Surface
-}
-note top of Models: Asset data after connecting to a graphics API
-
 package Graphics {
     struct HeapState {
         uploadBuffer
@@ -173,25 +141,45 @@ package Graphics {
         Only required if multiple vertex buffers are used
     end note
 
-    VIBufferView::IndexCount ..> DrawIndexedInstance::IndexCountPerInstance: Feeds
-    VIBufferView::IndexStart ..> DrawIndexedInstance::StartIndexLocation: Feeds
-    VIBufferView::IndexBufferTotalCount ..> IASetIndexBuffer::SizeInBytes: Feeds
-    VIBufferView::IndexBuffer ..> IASetIndexBuffer::BufferLocation: Feeds
+    VIBufferView::IndexCount ...> DrawIndexedInstance::IndexCountPerInstance: Feeds
+    VIBufferView::IndexStart ...> DrawIndexedInstance::StartIndexLocation: Feeds
+    VIBufferView::IndexBufferTotalCount ...> IASetIndexBuffer::SizeInBytes: Feeds
+    VIBufferView::IndexBuffer ...> IASetIndexBuffer::BufferLocation: Feeds
 
-    struct TextureID {
+    struct Mesh {
+        bufferViews: VIBufferView[]
+    }
+    note right of Mesh::bufferViews
+        Oner per submesh
+    end note
+    Mesh -[#blue]-> VIBufferView
+
+    struct Texture {
         id: int
     }
+    Texture::id ..> HLSL.Textures: References index of
+
+    struct Surface {
+        id: int
+        PSO: PipelineStateObject
+        AlbedoTexture: Texture
+        Required textures somehow?? Inheritance?
+    }
+    Surface::id ..> HLSL.Surfaces: References index of
 
     class LinearResourceBuilder {
-        VIBufferView CreateVertexIndexBuffer(HeapState, Mesh)
-        TextureID CreateTexture(HeapState, Texture)
-        SurfaceID CreateSurface(HeapState, Surface) ???
+        Mesh CreateMesh(HeapState, VertexData)
+        Texture CreateTexture(HeapState, TextureData)
+        Surface CreateSurface(HeapState, Materials
     }
     note top of LinearResourceBuilder: Handles both heaps and descriptor heaps for simplicity
 
     LinearResourceBuilder -[#red]-> HeapState: Uses when building
-    LinearResourceBuilder -[#green]-> VIBufferView
-    LinearResourceBuilder -[#green]-> TextureID
+    LinearResourceBuilder -[#green]-> Texture
+    LinearResourceBuilder -[#green]-> Surface
+    LinearResourceBuilder -[#green]-> Mesh
+    LinearResourceBuilder .[#red].> VertexData
+    LinearResourceBuilder .[#red].> TextureData
 
     struct GraphicsState {
         device
@@ -203,14 +191,44 @@ package Graphics {
     }
     GraphicsBuilder -[#green]-> GraphicsState
 
-    Models.Submesh::VIBufferView .[#red].> VIBufferView
-
     class PSOBuilder {
 
     }
 }
 
+HeapState .[#red]..> HLSL.Vertices
+HeapState .[#red]..> HLSL.Textures
+HeapState .[#red]..> HLSL.Surfaces
+HeapState .[#red]..> HLSL.PerObjectData
 
-ModelBuilder .[#red].> LinearResourceBuilder: Uses to create GPU resources
+package "Models" {
+    struct Submesh {
+        Surface: Surface
+        VIBufferView: VIBufferView
+    }
+    note right of Submesh: Vertex buffer shared between submeshes
+    struct Model {
+        Submeshes: Submesh[]
+    }
+    class ModelBuilder {
+        CreateModel(ResourceBuilder, Mesh, Surface[])
+    }
+    class Showroom {
+        AddShowcase(string name, Model)
+    }
+
+    Model -[#blue]u-> Submesh
+
+    ModelBuilder -[#green]u-> Model
+    ModelBuilder -[#green]u-> Surface
+    ' ModelBuilder::CreateModel "Stores instances in" .[#red]r.> Showroom
+
+    Submesh::Surface .[#red].> Surface
+    Submesh::VIBufferView .[#red].> VIBufferView
+}
+note top of Models: Asset data after connecting to a graphics API
+
+Models.ModelBuilder .[#red].-> Assets.TextureData
+Models.ModelBuilder .[#red].-> Graphics.Mesh
 
 @enduml

@@ -25,7 +25,7 @@ public class AssetLoader
 {
     private class MeshWithMaterial
     {
-        public Mesh Mesh { get; init; }
+        public VertexData Mesh { get; init; }
         public string[] SubmeshMaterials { get; init; }
     }
 
@@ -68,7 +68,7 @@ public class AssetLoader
 
         return new MeshWithMaterial()
         {
-            Mesh = new Mesh()
+            Mesh = new VertexData()
             {
                 Name = meshes[0].Name.Split('-')[0],
                 Vertices = vertices,
@@ -80,7 +80,7 @@ public class AssetLoader
 
     private static Material CreateMaterial(AssetCatalogue assetCatalogue, Assimp.Material material)
     {
-        Texture? diffuseTexture = assetCatalogue.GetTexture(material.TextureDiffuse.FilePath);
+        TextureData? diffuseTexture = assetCatalogue.GetTextureData(material.TextureDiffuse.FilePath);
 
         if (diffuseTexture == null)
             throw new NotImplementedException("Nooooooo not yet :(");
@@ -88,11 +88,11 @@ public class AssetLoader
         return new Material()
         {
             Name = material.Name,
-            Albedo = diffuseTexture,
+            AlbedoTexture = diffuseTexture.FilePath,
         };
     }
 
-    private static Result<Texture> CreateTexture(string rootPath, string texturePath)
+    private static Result<TextureData> CreateTexture(string rootPath, string texturePath)
     {
         using (var file = File.OpenRead(Path.Combine(rootPath, texturePath)))
         using (var stream = new MemoryStream())
@@ -102,7 +102,7 @@ public class AssetLoader
                 file.CopyTo(stream);
                 StbiImage image = Stbi.LoadFromMemory(stream, 4);
 
-                return Result.Ok(new Texture()
+                return Result.Ok(new TextureData()
                 {
                     FilePath = texturePath,
                     Texels = image.Data.ToArray(),
@@ -126,7 +126,7 @@ public class AssetLoader
         {
             if (!catalogue.HasTexture(material.TextureDiffuse.FilePath))
             {
-                Result<Texture> texture = CreateTexture(Path.GetDirectoryName(file) ?? string.Empty, material.TextureDiffuse.FilePath);
+                Result<TextureData> texture = CreateTexture(Path.GetDirectoryName(file) ?? string.Empty, material.TextureDiffuse.FilePath);
 
                 if (texture.IsSuccess)
                     catalogue.AddTexture(texture.Value);
@@ -158,8 +158,8 @@ public class AssetLoader
                 if (currentName != meshName)
                 {
                     MeshWithMaterial meshWithMaterial = CreateMesh(meshes, scene.Materials);
-                    catalogue.AddMesh(meshWithMaterial.Mesh);
-                    catalogue.AddDefaultMaterial(meshWithMaterial.Mesh, meshWithMaterial.SubmeshMaterials);
+                    catalogue.AddVertexData(meshWithMaterial.Mesh);
+                    catalogue.AddDefaultMaterial(meshWithMaterial.Mesh.Name, meshWithMaterial.SubmeshMaterials);
                     meshes.Clear();
                 }
 
@@ -170,8 +170,8 @@ public class AssetLoader
         if (meshes.Count > 0)
         {
             MeshWithMaterial meshWithMaterial = CreateMesh(meshes, scene.Materials);
-            catalogue.AddMesh(meshWithMaterial.Mesh);
-            catalogue.AddDefaultMaterial(meshWithMaterial.Mesh, meshWithMaterial.SubmeshMaterials);
+            catalogue.AddVertexData(meshWithMaterial.Mesh);
+            catalogue.AddDefaultMaterial(meshWithMaterial.Mesh.Name, meshWithMaterial.SubmeshMaterials);
             meshes.Clear();
         }
     }

@@ -1,6 +1,6 @@
 namespace ConsoleApp1.Graphics;
 
-public class TextureID
+public class Texture
 {
     public required int ID { get; init; }
 }
