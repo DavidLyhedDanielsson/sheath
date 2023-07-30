@@ -4,6 +4,8 @@ using StbiSharp;
 namespace ConsoleApp1.Asset;
 
 using System.Numerics;
+using Assimp;
+using Assimp.Unmanaged;
 
 public static class AssimpExtensions
 {
@@ -85,10 +87,20 @@ public class AssetLoader
         if (diffuseTexture == null)
             throw new NotImplementedException("Nooooooo not yet :(");
 
+
+        bool hasAlpha = false;
+
+        MaterialProperty? gltfAlphaMode = material.GetProperty("$mat.gltf.alphaMode,0,0");
+        if (gltfAlphaMode != null && gltfAlphaMode.GetStringValue() == "MASK")
+        {
+            hasAlpha = true;
+        }
+
         return new Material()
         {
             Name = material.Name,
             AlbedoTexture = diffuseTexture.FilePath,
+            AlbedoTextureHasAlpha = hasAlpha,
         };
     }
 
@@ -100,6 +112,7 @@ public class AssetLoader
             try
             {
                 file.CopyTo(stream);
+                Stbi.InfoFromMemory(stream, out int width, out int height, out int channelCount);
                 StbiImage image = Stbi.LoadFromMemory(stream, 4);
 
                 return Result.Ok(new TextureData()

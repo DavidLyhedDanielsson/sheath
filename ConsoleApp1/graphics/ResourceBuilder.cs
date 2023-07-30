@@ -147,7 +147,9 @@ public class LinearResourceBuilder : IResourceBuilder
     public static Surface CreateSurface(Settings settings, GraphicsState graphicsState, HeapState heapState, Material material, Dictionary<string, Texture> textures)
     {
         var vertexShader = Graphics.Utils.CompileVertexShader("vertex.hlsl").LogIfFailed().Value;
-        var pixelShader = Graphics.Utils.CompilePixelShader("pixel.hlsl").LogIfFailed().Value;
+
+        string pixelShaderPath = material.AlbedoTextureHasAlpha ? "pixel_alphamask.hlsl" : "pixel.hlsl";
+        var pixelShader = Graphics.Utils.CompilePixelShader(pixelShaderPath).LogIfFailed().Value;
 
         var pso = graphicsState.device.CreateGraphicsPipelineState(new GraphicsPipelineStateDescription
         {
@@ -163,7 +165,7 @@ public class LinearResourceBuilder : IResourceBuilder
             RasterizerState = new RasterizerDescription
             {
                 FillMode = FillMode.Solid,
-                CullMode = CullMode.Back,
+                CullMode = material.AlbedoTextureHasAlpha ? CullMode.None : CullMode.Back,
                 FrontCounterClockwise = true,
                 DepthBias = 0,
                 DepthBiasClamp = 0,
@@ -193,7 +195,7 @@ public class LinearResourceBuilder : IResourceBuilder
 
         return new Surface
         {
-            ID = 0,
+            ID = heapState.surfaceCounter++,
             PSO = pso,
             AlbedoTexture = albedoTexture,
         };
@@ -270,6 +272,7 @@ public class LinearResourceBuilder : IResourceBuilder
             textureHeap = textureHeap,
             constantBufferHeap = constantBufferHeap,
             cbvUavSrvDescriptorHeap = descriptorHeap,
+            surfaceCounter = 0,
         };
     }
 }

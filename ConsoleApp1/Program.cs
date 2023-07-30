@@ -213,11 +213,11 @@ namespace ConsoleApp1
                 int modelIndex = (uptime.Elapsed.Seconds / 3) % modelCycle.Length;
                 Model model = showroom.GetShowcase(modelCycle[modelIndex])!.Model;
 
-                commandList.SetPipelineState(model.Submeshes[0].Surface.PSO);
-
                 for (int submeshI = 0; submeshI < model.Submeshes.Length; ++submeshI)
                 {
                     var submesh = model.Submeshes[submeshI];
+
+                    commandList.SetPipelineState(submesh.Surface.PSO);
 
                     unsafe
                     {

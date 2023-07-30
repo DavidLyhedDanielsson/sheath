@@ -136,4 +136,6 @@ public class HeapState
     internal Heap textureHeap;
     internal Heap constantBufferHeap;
     internal DescriptorHeap cbvUavSrvDescriptorHeap;
+
+    internal int surfaceCounter;
 }
