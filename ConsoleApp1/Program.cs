@@ -4,8 +4,8 @@ using static SDL2.SDL;
 using Vortice.Direct3D12;
 using ConsoleApp1.Models;
 using System.Diagnostics;
-using System.Numerics;
 using static System.Runtime.InteropServices.Marshal;
+using Silk.NET.Maths;
 
 namespace ConsoleApp1
 {
@@ -175,17 +175,17 @@ namespace ConsoleApp1
                     }
                 }
 
-                Matrix4x4 viewMatrix = Matrix4x4.CreateLookAt(
-                    new Vector3(MathF.Cos((float)uptime.Elapsed.TotalSeconds) * 30.0f, 30.0f,
-                        MathF.Sin((float)uptime.Elapsed.TotalSeconds) * 30.0f), Vector3.Zero, Vector3.UnitY);
-                Matrix4x4 projMatrix = Matrix4x4.CreatePerspectiveFieldOfView(59.0f * (MathF.PI / 180.0f),
-                    settings.Window.Width / (float)settings.Window.Height, 1, 50);
-                Matrix4x4 viewProjMatrix = Matrix4x4.Transpose(viewMatrix * projMatrix);
+                Matrix4X4<float> viewMatrix = Matrix4X4.CreateLookAt(
+                    new Vector3D<float>(MathF.Cos((float)uptime.Elapsed.TotalSeconds) * 30.0f, 30.0f,
+                        MathF.Sin((float)uptime.Elapsed.TotalSeconds) * 30.0f), Vector3D<float>.Zero, Vector3D<float>.UnitY);
+                Matrix4X4<float> projMatrix = Matrix4X4.CreatePerspectiveFieldOfView(59.0f * (MathF.PI / 180.0f),
+                    settings.Window.Width / (float)settings.Window.Height, 50.0f, 0.001f);
+                Matrix4X4<float> viewProjMatrix = Matrix4X4.Transpose(viewMatrix * projMatrix);
                 unsafe
                 {
                     byte* data;
                     cameraBuffer.Map(0, (void**)&data);
-                    Buffer.MemoryCopy(&viewProjMatrix.M11, data, 1024, 4 * 4 * 4);
+                    Buffer.MemoryCopy(&viewProjMatrix, data, 1024, 4 * 4 * 4);
                     cameraBuffer.Unmap(0);
                 }
 
@@ -195,14 +195,25 @@ namespace ConsoleApp1
 
                 var frameIndex = (int)(graphicsState.frameCount % 3);
 
-                commandList.ResourceBarrier(new ResourceBarrier(new ResourceTransitionBarrier(
-                    graphicsState.renderTargets[frameIndex], ResourceStates.Common, ResourceStates.RenderTarget)));
+                commandList.ResourceBarrier(
+                    new ResourceBarrier[] {
+                        ResourceBarrier.BarrierTransition(graphicsState.renderTargets[frameIndex], ResourceStates.Common, ResourceStates.RenderTarget),
+                    }
+                );
 
                 commandList.ClearRenderTargetView(
                     graphicsState.rtvDescriptorHeap.GetCPUDescriptorHandleForHeapStart() +
                     frameIndex * graphicsState.rtvDescriptorSize, Vortice.Mathematics.Colors.LemonChiffon);
-                commandList.OMSetRenderTargets(graphicsState.rtvDescriptorHeap.GetCPUDescriptorHandleForHeapStart() +
-                                               frameIndex * graphicsState.rtvDescriptorSize);
+                commandList.ClearDepthStencilView(
+                    graphicsState.dsvDescriptorHeap.GetCPUDescriptorHandleForHeapStart(),
+                    ClearFlags.Depth | ClearFlags.Stencil,
+                    settings.Graphics.DepthClearValue,
+                    0
+                );
+                commandList.OMSetRenderTargets(
+                    graphicsState.rtvDescriptorHeap.GetCPUDescriptorHandleForHeapStart() + frameIndex * graphicsState.rtvDescriptorSize,
+                    graphicsState.dsvDescriptorHeap.GetCPUDescriptorHandleForHeapStart()
+                );
                 commandList.RSSetViewport(0.0f, 0.0f, settings.Window.Width, settings.Window.Height);
                 commandList.RSSetScissorRect(settings.Window.Width, settings.Window.Height);
                 commandList.IASetPrimitiveTopology(Vortice.Direct3D.PrimitiveTopology.TriangleList);

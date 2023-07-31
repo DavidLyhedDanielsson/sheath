@@ -3,23 +3,22 @@ using StbiSharp;
 
 namespace ConsoleApp1.Asset;
 
-using System.Numerics;
 using Assimp;
-using Assimp.Unmanaged;
+using Silk.NET.Maths;
 
 public static class AssimpExtensions
 {
-    public static Vector2 ToVector2(this Assimp.Vector2D vec)
+    public static Vector2D<float> ToVector2(this Assimp.Vector2D vec)
     {
-        return new Vector2 { X = vec.X, Y = vec.Y };
+        return new Vector2D<float> { X = vec.X, Y = vec.Y };
     }
-    public static Vector2 ToVector2(this Assimp.Vector3D vec)
+    public static Vector2D<float> ToVector2(this Assimp.Vector3D vec)
     {
-        return new Vector2 { X = vec.X, Y = vec.Y };
+        return new Vector2D<float> { X = vec.X, Y = vec.Y };
     }
-    public static Vector3 ToVector3(this Assimp.Vector3D vec)
+    public static Vector3D<float> ToVector3(this Assimp.Vector3D vec)
     {
-        return new Vector3 { X = vec.X, Y = vec.Y, Z = vec.Z };
+        return new Vector3D<float> { X = vec.X, Y = vec.Y, Z = vec.Z };
     }
 }
 

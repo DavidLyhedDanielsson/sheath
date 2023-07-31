@@ -176,7 +176,7 @@ public class LinearResourceBuilder : IResourceBuilder
                 ForcedSampleCount = 0,
                 ConservativeRaster = ConservativeRasterizationMode.Off
             },
-            DepthStencilState = DepthStencilDescription.None,
+            DepthStencilState = DepthStencilDescription.ReverseZ,
             InputLayout = null,
             IndexBufferStripCutValue = IndexBufferStripCutValue.Disabled,
             PrimitiveTopologyType = PrimitiveTopologyType.Triangle,

@@ -14,8 +14,10 @@ public class GraphicsState
     public ID3D12GraphicsCommandList commandList;
     public ID3D12RootSignature rootSignature;
     public ID3D12DescriptorHeap rtvDescriptorHeap;
+    public ID3D12DescriptorHeap dsvDescriptorHeap;
     //public ID3D12DescriptorHeap cbvUavSrvDescriptorHeap;
     public ID3D12Resource[] renderTargets;
+    public ID3D12Resource depthBuffer;
     public ID3D12Resource depthStencilView;
     public ID3D12Resource instanceBuffer;
 
@@ -31,6 +33,7 @@ public class GraphicsState
     public ulong frameCount;
 
     public int rtvDescriptorSize;
+    public int dsvDescriptorSize;
     //public int cbvUavSrvDescriptorSize;
 
     private static void DebugCallback(MessageCategory category, MessageSeverity severity, MessageId id, string description)
@@ -100,7 +103,40 @@ public class GraphicsState
             state.device.CreateRenderTargetView(state.renderTargets[i], null, state.rtvDescriptorHeap.GetCPUDescriptorHandleForHeapStart() + i * state.rtvDescriptorSize);
         }
 
-        var a = HeapConfig.ArraySize.cbvs;
+        state.dsvDescriptorSize = state.device.GetDescriptorHandleIncrementSize(DescriptorHeapType.DepthStencilView);
+        state.dsvDescriptorHeap = state.device.CreateDescriptorHeap(new(DescriptorHeapType.DepthStencilView, 1, DescriptorHeapFlags.None));
+
+        state.depthBuffer = state.device.CreateCommittedResource(
+            HeapType.Default,
+            ResourceDescription.Texture2D(
+                settings.Graphics.DepthStencilFormat,
+                (uint)settings.Window.Width,
+                (uint)settings.Window.Height,
+                1,
+                1,
+                1,
+                0,
+                ResourceFlags.AllowDepthStencil),
+            ResourceStates.DepthWrite,
+            new ClearValue
+            {
+                Format = settings.Graphics.DepthStencilFormat,
+                DepthStencil = new DepthStencilValue
+                {
+                    Depth = settings.Graphics.DepthClearValue,
+                    Stencil = 0
+                }
+            });
+        state.device.CreateDepthStencilView(state.depthBuffer, new DepthStencilViewDescription
+        {
+            Format = settings.Graphics.DepthStencilFormat,
+            ViewDimension = DepthStencilViewDimension.Texture2D,
+            Flags = DepthStencilViewFlags.None,
+            Texture2D = new Texture2DDepthStencilView
+            {
+                MipSlice = 0
+            }
+        }, state.dsvDescriptorHeap.GetCPUDescriptorHandleForHeapStart());
 
         state.device.CreateRootSignature(new VersionedRootSignatureDescription
         (

@@ -1,9 +1,9 @@
-using System.Numerics;
 using Vortice.DXGI;
 using YamlDotNet.Core;
 using YamlDotNet.Serialization;
 using YamlDotNet.Serialization.NamingConventions;
 using YamlDotNet.Serialization.NodeDeserializers;
+using Silk.NET.Maths;
 
 namespace ConsoleApp1;
 
@@ -56,10 +56,12 @@ public class Settings
         public Format BackBufferFormat { get; set; }
         public Format DepthStencilFormat { get; set; }
         public int BackBufferCount { get; set; }
+        public float DepthClearValue { get; set; }
 
         public const Format DefaultBackBufferFormat = Format.R8G8B8A8_UNorm;
-        public const Format DefaultDepthStencilFormat = Format.D32_Float;
+        public const Format DefaultDepthStencilFormat = Format.D24_UNorm_S8_UInt;
         public const int DefaultBackBufferCount = 3;
+        public const float DefaultDepthClearValue = 1.0f;
 
         public static GraphicsS CreateDefault()
         {
@@ -68,6 +70,7 @@ public class Settings
                 BackBufferFormat = DefaultBackBufferFormat,
                 DepthStencilFormat = DefaultDepthStencilFormat,
                 BackBufferCount = DefaultBackBufferCount,
+                DepthClearValue = DefaultDepthClearValue,
             };
         }
         public void ValidateAndCorrect()
@@ -79,11 +82,11 @@ public class Settings
 
     public class StateS : ISettingsGroup<StateS>
     {
-        public Vector3 CameraPosition;
-        public Vector3 CameraForward;
+        public Vector3D<float> CameraPosition;
+        public Vector3D<float> CameraForward;
 
-        public static Vector3 DefaultCameraPosition = Vector3.Zero;
-        public static Vector3 DefaultCameraForward = new Vector3(0.0f, 0.0f, 1.0f);
+        public static Vector3D<float> DefaultCameraPosition = Vector3D<float>.Zero;
+        public static Vector3D<float> DefaultCameraForward = new Vector3D<float>(0.0f, 0.0f, 1.0f);
 
         public static StateS CreateDefault()
         {
