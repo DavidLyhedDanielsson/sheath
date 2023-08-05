@@ -153,10 +153,10 @@ public class AssetLoader
         foreach (var material in scene.Materials)
             catalogue.AddMaterial(CreateMaterial(catalogue, material));
 
-        scene.Meshes.Sort((lhs, rhs) => string.Compare(lhs.Name, rhs.Name, StringComparison.Ordinal));
-
         // Meshes with submeshes are named Mesh-0/Mesh-1/Mesh-2. Group them
         // together before calling `Addmesh`.
+        scene.Meshes.Sort((lhs, rhs) => string.Compare(lhs.Name, rhs.Name, StringComparison.Ordinal));
+
         List<Assimp.Mesh> meshes = new(10);
         foreach (Assimp.Mesh mesh in scene.Meshes)
         {

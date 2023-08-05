@@ -20,6 +20,68 @@ public class Scene
     private Dictionary<int, List<SubmeshRef>> _psos = new();
     private Dictionary<int, PSO> _psoMapping = new(); // :(
 
+    public Box3D<float> GetBounds()
+    {
+        var min = new Vector4D<float>(float.MaxValue);
+        var max = new Vector4D<float>(float.MinValue);
+
+        foreach (var instance in _instances)
+        {
+            foreach (var instanceData in instance.Value)
+            {
+                min = Vector4D.Min(min, instanceData.transform.Column4);
+                max = Vector4D.Max(max, instanceData.transform.Column4);
+            }
+        }
+
+        return new Box3D<float>(
+            new Vector3D<float> { X = min.X, Y = min.Y, Z = min.Z },
+            new Vector3D<float> { X = max.X, Y = max.Y, Z = max.Z }
+        );
+    }
+
+    public void AddInstancesFromFile(Showroom showroom, string filePath)
+    {
+        var importer = new Assimp.AssimpContext();
+        var scene = importer.ImportFile(filePath, Assimp.PostProcessPreset.TargetRealTimeQuality);
+
+        string[] meshNames = scene.Meshes.Select(mesh => mesh.Name).ToArray();
+
+        Action<Assimp.Node> AddInstancesFrom = null;
+        AddInstancesFrom = (Assimp.Node node) =>
+        {
+            if (node.HasMeshes)
+            {
+                foreach (int meshIndex in node.MeshIndices)
+                {
+                    string meshName = meshNames[meshIndex];
+                    string[] splitName = meshName.Split('-');
+
+                    var t = node.Transform;
+
+                    Matrix4X4<float> transform = new(
+                        t.A1, t.B1, t.C1, t.D1,
+                        t.A2, t.B2, t.C2, t.D2,
+                        t.A3, t.B3, t.C3, t.D3,
+                        t.A4, t.B4, t.C4, t.D4
+                        );
+
+                    var m = Matrix4X4.CreateTranslation(1.0f, 0.0f, 0.0f);
+
+                    if (splitName[1] == "0")
+                        AddInstance(showroom.GetShowcase(splitName[0]).Model, new InstanceData { transform = transform });
+                }
+            }
+
+            foreach (Assimp.Node child in node.Children)
+            {
+                AddInstancesFrom(child);
+            }
+        };
+
+        AddInstancesFrom(scene.RootNode);
+    }
+
     public void AddInstance(Model model, InstanceData instanceData)
     {
         instanceData.transform = Matrix4X4.Transpose<float>(instanceData.transform);

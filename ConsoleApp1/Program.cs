@@ -122,7 +122,7 @@ namespace ConsoleApp1
 
             Scene scene = new();
 
-            int added = 0;
+            //int added = 0;
 
             assetCatalogue.ForEachDefaultMaterial((string vertexDataId, string[] materials) =>
             {
@@ -141,11 +141,14 @@ namespace ConsoleApp1
 
                 Model model = ModelBuilder.CreateModel(mesh, surfaces);
 
-                scene.AddInstance(model, new InstanceData { transform = Matrix4X4.CreateTranslation<float>(added * 5.0f, 0.0f, 0.0f) });
-                added++;
+                //scene.AddInstance(model, new InstanceData { transform = Matrix4X4.CreateTranslation<float>(added * 5.0f, 0.0f, 0.0f) });
+                //added++;
 
                 showroom.AddShowcase(vertexDataId, model);
             });
+
+            scene.AddInstancesFromFile(showroom, "Map/Main.gltf");
+            var bounds = scene.GetBounds();
 
             ID3D12Resource cameraBuffer = graphicsState.device.CreateCommittedResource(HeapType.Upload,
                 ResourceDescription.Buffer(1024), ResourceStates.AllShaderResource);
@@ -187,9 +190,19 @@ namespace ConsoleApp1
                     }
                 }
 
+                var center = bounds.Center;
+                var radius = bounds.Size.Length * 0.5f;
+
                 Matrix4X4<float> viewMatrix = Matrix4X4.CreateLookAt(
-                    new Vector3D<float>(MathF.Cos((float)uptime.Elapsed.TotalSeconds) * 30.0f, 30.0f,
-                        MathF.Sin((float)uptime.Elapsed.TotalSeconds) * 30.0f), Vector3D<float>.Zero, Vector3D<float>.UnitY);
+                    center +
+                    new Vector3D<float>(
+                        MathF.Cos((float)uptime.Elapsed.TotalSeconds) * radius,
+                        30.0f,
+                        MathF.Sin((float)uptime.Elapsed.TotalSeconds) * radius
+                    ),
+                    center,
+                    Vector3D<float>.UnitY
+                );
                 Matrix4X4<float> projMatrix = Matrix4X4.CreatePerspectiveFieldOfView(59.0f * (MathF.PI / 180.0f),
                     settings.Window.Width / (float)settings.Window.Height, 50000.0f, 0.001f);
                 Matrix4X4<float> viewProjMatrix = Matrix4X4.Transpose(viewMatrix * projMatrix);

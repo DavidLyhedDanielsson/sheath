@@ -237,8 +237,7 @@ package "World" {
     }
 
     class Scene {
-        objects: Dictionary<Model, List<InstanceData>>
-        psos: Dictionary<PSO, Model>
+        AddInstance(Model, InstanceData)
     }
 }
 
