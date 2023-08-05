@@ -191,7 +191,7 @@ namespace ConsoleApp1
                     new Vector3D<float>(MathF.Cos((float)uptime.Elapsed.TotalSeconds) * 30.0f, 30.0f,
                         MathF.Sin((float)uptime.Elapsed.TotalSeconds) * 30.0f), Vector3D<float>.Zero, Vector3D<float>.UnitY);
                 Matrix4X4<float> projMatrix = Matrix4X4.CreatePerspectiveFieldOfView(59.0f * (MathF.PI / 180.0f),
-                    settings.Window.Width / (float)settings.Window.Height, 50.0f, 0.001f);
+                    settings.Window.Width / (float)settings.Window.Height, 50000.0f, 0.001f);
                 Matrix4X4<float> viewProjMatrix = Matrix4X4.Transpose(viewMatrix * projMatrix);
                 unsafe
                 {
