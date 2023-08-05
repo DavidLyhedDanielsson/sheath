@@ -17,6 +17,7 @@ public static class HeapConfig
         Texture = 2,
         VertexBuffer = 3,
         Surfaces = 4,
+        InstanceDatas = 5,
     };
 
     private static readonly int[] _sizes = new int[] {
@@ -25,6 +26,7 @@ public static class HeapConfig
         1024, // Texture
         1024, // Vertex buffer
         1024, // Surface
+        1, // InstanceDatas
     };
 
     public readonly struct Segments
@@ -33,6 +35,7 @@ public static class HeapConfig
         public static readonly int textures = (int)Type.Texture - 1;
         public static readonly int vertexBuffers = (int)Type.VertexBuffer - 1;
         public static readonly int surfaces = (int)Type.Surfaces - 1;
+        public static readonly int instanceDatas = (int)Type.InstanceDatas - 1;
     };
 
     public readonly struct ArraySize
@@ -41,6 +44,7 @@ public static class HeapConfig
         public static readonly int textures = _sizes[(int)Type.Texture];
         public static readonly int vertexBuffers = _sizes[(int)Type.VertexBuffer];
         public static readonly int surfaces = _sizes[(int)Type.Surfaces];
+        public static readonly int instanceDatas = _sizes[(int)Type.InstanceDatas];
         public static readonly int total = _sizes.Sum();
     };
 
@@ -51,25 +55,28 @@ public static class HeapConfig
         public static readonly int textures = _sizes.Take((int)Type.Texture).Skip(1).Sum();
         public static readonly int vertexBuffers = _sizes.Take((int)Type.VertexBuffer).Skip(1).Sum();
         public static readonly int surfaces = _sizes.Take((int)Type.Surfaces).Skip(1).Sum();
+        public static readonly int instanceDatas = _sizes.Take((int)Type.InstanceDatas).Skip(1).Sum();
     };
 
     public struct BaseRegister
     {
-        public const int perInstanceBuffer = 0;
+        public const int modelData = 0;
         public const int cbvs = 1;
         public const int textures = 0;
         public const int vertexBuffers = 0;
         public const int surfaces = 0;
         public const int staticSamplers = 0;
+        public const int instanceDatas = 0;
     };
 
     public struct RegisterSpace
     {
-        public const int perInstanceBuffer = 0;
+        public const int modelData = 0;
         public const int cbvs = 0;
         public const int textures = 1;
         public const int vertexBuffers = 2;
         public const int surfaces = 3;
         public const int staticSamplers = 4;
+        public const int instanceDatas = 5;
     };
 }

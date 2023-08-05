@@ -6,6 +6,7 @@ using ConsoleApp1.Models;
 using System.Diagnostics;
 using static System.Runtime.InteropServices.Marshal;
 using Silk.NET.Maths;
+using ConsoleApp1.World;
 
 namespace ConsoleApp1
 {
@@ -119,6 +120,10 @@ namespace ConsoleApp1
                 meshNames.Add(vertexData.Name, mesh);
             });
 
+            Scene scene = new();
+
+            int added = 0;
+
             assetCatalogue.ForEachDefaultMaterial((string vertexDataId, string[] materials) =>
             {
                 if (!loadCycle.Contains(vertexDataId))
@@ -126,11 +131,18 @@ namespace ConsoleApp1
 
                 Surface[] surfaces = new Surface[materials.Length];
                 for (int i = 0; i < materials.Length; ++i)
-                    Debug.Assert(surfaceNames.TryGetValue(materials[i], out surfaces[i]));
+                {
+                    surfaceNames.TryGetValue(materials[i], out surfaces[i]);
+                    Debug.Assert(surfaces[i] != null);
+                }
 
-                Debug.Assert(meshNames.TryGetValue(vertexDataId, out Mesh? mesh));
+                meshNames.TryGetValue(vertexDataId, out Mesh? mesh);
+                Debug.Assert(mesh != null);
 
                 Model model = ModelBuilder.CreateModel(mesh, surfaces);
+
+                scene.AddInstance(model, new InstanceData { transform = Matrix4X4.CreateTranslation<float>(added * 5.0f, 0.0f, 0.0f) });
+                added++;
 
                 showroom.AddShowcase(vertexDataId, model);
             });
@@ -221,32 +233,7 @@ namespace ConsoleApp1
                 commandList.SetDescriptorHeaps(heapState.cbvUavSrvDescriptorHeap.ID3D12DescriptorHeap);
                 commandList.SetGraphicsRootDescriptorTable(1, heapState.cbvUavSrvDescriptorHeap.ID3D12DescriptorHeap.GetGPUDescriptorHandleForHeapStart());
 
-                int modelIndex = (uptime.Elapsed.Seconds / 3) % modelCycle.Length;
-                Model model = showroom.GetShowcase(modelCycle[modelIndex])!.Model;
-
-                for (int submeshI = 0; submeshI < model.Submeshes.Length; ++submeshI)
-                {
-                    var submesh = model.Submeshes[submeshI];
-
-                    commandList.SetPipelineState(submesh.Surface.PSO);
-
-                    unsafe
-                    {
-                        var id = submesh.Surface.AlbedoTexture.ID;
-
-                        byte* data;
-                        graphicsState.instanceBuffer.Map(0, (void**)&data);
-                        data += submeshI * 256;
-
-                        Buffer.MemoryCopy(&modelIndex, data, 4, 4);
-                        Buffer.MemoryCopy(&id, data + 4, 4, 4);
-                        graphicsState.instanceBuffer.Unmap(0);
-                    }
-
-                    commandList.SetGraphicsRootConstantBufferView(0, graphicsState.instanceBuffer.GPUVirtualAddress + (ulong)(submeshI * 256));
-                    commandList.IASetIndexBuffer(new IndexBufferView(submesh.VIBufferView.IndexBuffer.GPUVirtualAddress, submesh.VIBufferView.IndexBufferTotalCount * SizeOf(typeof(uint)), Vortice.DXGI.Format.R32_UInt));
-                    commandList.DrawIndexedInstanced(submesh.VIBufferView.IndexCount, 1, submesh.VIBufferView.IndexStart, 0, 0);
-                }
+                scene.Render(graphicsState, heapState.instanceDataBuffer, heapState.perDrawBuffer);
 
                 commandList.ResourceBarrier(new ResourceBarrier(new ResourceTransitionBarrier(
                     graphicsState.renderTargets[frameIndex], ResourceStates.RenderTarget, ResourceStates.Common)));

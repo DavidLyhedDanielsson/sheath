@@ -2,6 +2,7 @@ using System.Diagnostics;
 using ConsoleApp1.Asset;
 using ConsoleApp1.Models;
 using FluentResults;
+using Silk.NET.Maths;
 using Vortice.Direct3D12;
 using Vortice.DXGI;
 using static System.Runtime.InteropServices.Marshal;
@@ -75,6 +76,7 @@ public class LinearResourceBuilder : IResourceBuilder
 
                 viBufferViews.Add(new VIBufferView
                 {
+                    VertexBufferId = heapState.cbvUavSrvDescriptorHeap.Segments[HeapConfig.Segments.vertexBuffers].Used - 1,
                     VertexBuffer = vertexBuffer,
                     IndexBuffer = indexBuffer,
                     IndexStart = indexStart,
@@ -151,7 +153,7 @@ public class LinearResourceBuilder : IResourceBuilder
         string pixelShaderPath = material.AlbedoTextureHasAlpha ? "pixel_alphamask.hlsl" : "pixel.hlsl";
         var pixelShader = Graphics.Utils.CompilePixelShader(pixelShaderPath).LogIfFailed().Value;
 
-        var pso = graphicsState.device.CreateGraphicsPipelineState(new GraphicsPipelineStateDescription
+        var pipelineState = graphicsState.device.CreateGraphicsPipelineState(new GraphicsPipelineStateDescription
         {
             RootSignature = graphicsState.rootSignature,
             VertexShader = vertexShader.GetObjectBytecodeMemory(),
@@ -170,7 +172,7 @@ public class LinearResourceBuilder : IResourceBuilder
                 DepthBias = 0,
                 DepthBiasClamp = 0,
                 SlopeScaledDepthBias = 0,
-                DepthClipEnable = false,
+                DepthClipEnable = true,
                 MultisampleEnable = false,
                 AntialiasedLineEnable = false,
                 ForcedSampleCount = 0,
@@ -191,12 +193,17 @@ public class LinearResourceBuilder : IResourceBuilder
             Flags = PipelineStateFlags.None
         });
 
-        Debug.Assert(textures.TryGetValue(material.AlbedoTexture, out Texture? albedoTexture));
+        textures.TryGetValue(material.AlbedoTexture, out Texture? albedoTexture);
+        Debug.Assert(albedoTexture != null);
 
         return new Surface
         {
             ID = heapState.surfaceCounter++,
-            PSO = pso,
+            PSO = new PSO
+            {
+                ID = material.AlbedoTextureHasAlpha ? 1 : 0, // TODO :)
+                ID3D12PipelineState = pipelineState,
+            },
             AlbedoTexture = albedoTexture,
         };
     }
@@ -217,6 +224,7 @@ public class LinearResourceBuilder : IResourceBuilder
             .WithSegment(HeapConfig.ArraySize.textures)
             .WithSegment(HeapConfig.ArraySize.vertexBuffers)
             .WithSegment(HeapConfig.ArraySize.surfaces)
+            .WithSegment(HeapConfig.ArraySize.instanceDatas)
             .Build();
 
         const int uploadHeapSize = 256 * 1024 * 1024;
@@ -255,13 +263,72 @@ public class LinearResourceBuilder : IResourceBuilder
             , textureHeapSize
         );
 
-        const ulong constantBufferHeapSize = 64 * 1024 * 1024;
-        Heap constantBufferHeap = Heap.New(
-            graphicsState.device.CreateHeap<ID3D12Heap>(
-                new HeapDescription(constantBufferHeapSize, HeapType.Default)
-            )
-            , constantBufferHeapSize
-        );
+        Heap instanceDataHeap;
+        ID3D12Resource instanceDataBuffer;
+        {
+            const ulong instanceDataHeapSize = 64 * 1024 * 1024;
+            instanceDataHeap = Heap.New(
+                graphicsState.device.CreateHeap<ID3D12Heap>(
+                    new HeapDescription(instanceDataHeapSize, HeapType.Upload)
+                )
+                , instanceDataHeapSize
+            );
+
+            instanceDataBuffer = graphicsState.device.CreatePlacedResource<ID3D12Resource>(
+                instanceDataHeap.ID3D12Heap,
+                0,
+                ResourceDescription.Buffer(instanceDataHeapSize),
+                ResourceStates.AllShaderResource);
+
+            graphicsState.device.CreateShaderResourceView(instanceDataBuffer,
+                new ShaderResourceViewDescription
+                {
+                    Format = Format.Unknown,
+                    ViewDimension = ShaderResourceViewDimension.Buffer,
+                    Shader4ComponentMapping = ShaderComponentMapping.Default,
+                    Buffer = new BufferShaderResourceView
+                    {
+                        FirstElement = 0,
+                        NumElements = (int)(instanceDataHeapSize / (4 * 4)),
+                        StructureByteStride = 4 * 4,
+                        Flags = BufferShaderResourceViewFlags.None,
+                    }
+                }, descriptorHeap.Segments[HeapConfig.Segments.instanceDatas].NextCpuHandle());
+        }
+
+        Heap perDrawConstantBufferHeap;
+        ID3D12Resource perDrawBuffer;
+        {
+            const ulong perDrawConstantBufferHeapSize = 2 * 1024 * 1024;
+            perDrawConstantBufferHeap = Heap.New(
+                graphicsState.device.CreateHeap<ID3D12Heap>(
+                    new HeapDescription(perDrawConstantBufferHeapSize, HeapType.Upload)
+                )
+                , perDrawConstantBufferHeapSize
+            );
+
+            perDrawBuffer = graphicsState.device.CreatePlacedResource<ID3D12Resource>(
+                perDrawConstantBufferHeap.ID3D12Heap,
+                0,
+                ResourceDescription.Buffer(perDrawConstantBufferHeapSize),
+                ResourceStates.VertexAndConstantBuffer);
+
+            /*graphicsState.device.CreateShaderResourceView(perDrawBuffer,
+                new ShaderResourceViewDescription
+                {
+                    Format = Format.Unknown,
+                    ViewDimension = ShaderResourceViewDimension.Buffer,
+                    Shader4ComponentMapping = ShaderComponentMapping.Default,
+                    Buffer = new BufferShaderResourceView
+                    {
+                        FirstElement = 0,
+                        NumElements = (int)(perDrawConstantBufferHeapSize / (4 * 4)),
+                        StructureByteStride = 4 * 4,
+                        Flags = BufferShaderResourceViewFlags.None,
+                    }
+                }, descriptorHeap.Segments[HeapConfig.Segments.instanceDatas].NextCpuHandle());*/
+        }
+
 
         return new HeapState
         {
@@ -270,8 +337,11 @@ public class LinearResourceBuilder : IResourceBuilder
             vertexHeap = vertexHeap,
             indexHeap = indexHeap,
             textureHeap = textureHeap,
-            constantBufferHeap = constantBufferHeap,
             cbvUavSrvDescriptorHeap = descriptorHeap,
+            instanceDataHeap = instanceDataHeap,
+            instanceDataBuffer = instanceDataBuffer,
+            perDrawConstantBufferHeap = perDrawConstantBufferHeap,
+            perDrawBuffer = perDrawBuffer,
             surfaceCounter = 0,
         };
     }

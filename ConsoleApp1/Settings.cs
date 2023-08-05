@@ -61,7 +61,7 @@ public class Settings
         public const Format DefaultBackBufferFormat = Format.R8G8B8A8_UNorm;
         public const Format DefaultDepthStencilFormat = Format.D24_UNorm_S8_UInt;
         public const int DefaultBackBufferCount = 3;
-        public const float DefaultDepthClearValue = 1.0f;
+        public const float DefaultDepthClearValue = 0.0f;
 
         public static GraphicsS CreateDefault()
         {

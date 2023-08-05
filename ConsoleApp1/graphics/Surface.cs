@@ -6,6 +6,6 @@ namespace ConsoleApp1.Models;
 public class Surface
 {
     public required int ID { get; init; }
-    public required ID3D12PipelineState PSO { get; init; }
+    public required PSO PSO { get; init; }
     public required Texture AlbedoTexture { get; init; }
 }
