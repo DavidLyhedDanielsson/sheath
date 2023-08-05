@@ -231,4 +231,15 @@ note top of Models: Asset data after connecting to a graphics API
 Models.ModelBuilder .[#red].-> Assets.TextureData
 Models.ModelBuilder .[#red].-> Graphics.Mesh
 
+package "World" {
+    struct InstanceData {
+        transform: Matrix
+    }
+
+    class Scene {
+        objects: Dictionary<Model, List<InstanceData>>
+        psos: Dictionary<PSO, Model>
+    }
+}
+
 @enduml

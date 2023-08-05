@@ -15,11 +15,9 @@ public class GraphicsState
     public ID3D12RootSignature rootSignature;
     public ID3D12DescriptorHeap rtvDescriptorHeap;
     public ID3D12DescriptorHeap dsvDescriptorHeap;
-    //public ID3D12DescriptorHeap cbvUavSrvDescriptorHeap;
     public ID3D12Resource[] renderTargets;
     public ID3D12Resource depthBuffer;
     public ID3D12Resource depthStencilView;
-    public ID3D12Resource instanceBuffer;
 
     public IDXGISwapChain swapChain;
 
@@ -34,7 +32,6 @@ public class GraphicsState
 
     public int rtvDescriptorSize;
     public int dsvDescriptorSize;
-    //public int cbvUavSrvDescriptorSize;
 
     private static void DebugCallback(MessageCategory category, MessageSeverity severity, MessageId id, string description)
     {
@@ -144,7 +141,7 @@ public class GraphicsState
             {
                 Flags = RootSignatureFlags.AllowInputAssemblerInputLayout,
                 Parameters = new[] {
-                    new RootParameter1(RootParameterType.ConstantBufferView, new RootDescriptor1(HeapConfig.BaseRegister.perInstanceBuffer, HeapConfig.RegisterSpace.perInstanceBuffer, RootDescriptorFlags.None), ShaderVisibility.All),
+                    new RootParameter1(RootParameterType.ConstantBufferView, new RootDescriptor1(HeapConfig.BaseRegister.modelData, HeapConfig.RegisterSpace.modelData, RootDescriptorFlags.None), ShaderVisibility.All),
                     new RootParameter1(
                         new RootDescriptorTable1(
                             new[] {
@@ -152,6 +149,7 @@ public class GraphicsState
                                 new DescriptorRange1(DescriptorRangeType.ShaderResourceView, -1, HeapConfig.BaseRegister.textures, HeapConfig.RegisterSpace.textures, HeapConfig.DescriptorOffsetFromStart.textures),
                                 new DescriptorRange1(DescriptorRangeType.ShaderResourceView, -1, HeapConfig.BaseRegister.vertexBuffers, HeapConfig.RegisterSpace.vertexBuffers, HeapConfig.DescriptorOffsetFromStart.vertexBuffers),
                                 new DescriptorRange1(DescriptorRangeType.ShaderResourceView, -1, HeapConfig.BaseRegister.surfaces, HeapConfig.RegisterSpace.surfaces, HeapConfig.DescriptorOffsetFromStart.surfaces),
+                                new DescriptorRange1(DescriptorRangeType.ShaderResourceView, -1, HeapConfig.BaseRegister.instanceDatas, HeapConfig.RegisterSpace.instanceDatas, HeapConfig.DescriptorOffsetFromStart.instanceDatas),
                             }
                         )
                     , ShaderVisibility.All)
@@ -181,28 +179,6 @@ public class GraphicsState
 
         state.fence = state.device.CreateFence();
         state.fenceEvent = new AutoResetEvent(false);
-
-        state.instanceBuffer = state.device.CreateCommittedResource(
-            HeapType.Upload,
-            HeapFlags.None,
-            ResourceDescription.Buffer(64 * 1024 * 1024),
-            ResourceStates.Common);
-        unsafe
-        {
-            int[] initialData = new int[1024];
-            for (int i = 0; i < 1024; ++i)
-                initialData[i] = 0;
-
-            byte* data;
-            state.instanceBuffer.Map(0, (void**)&data);
-            fixed (void* source = &initialData[0])
-            {
-                for (int i = 0; i < 64 * 1024 * 1024; i += 1024 * 4)
-                    Buffer.MemoryCopy(source, data + i, 64 * 1024 * 1024, 1024 * 4);
-            }
-            state.instanceBuffer.Unmap(0);
-        }
-        state.commandList.ResourceBarrierTransition(state.instanceBuffer, ResourceStates.Common, ResourceStates.VertexAndConstantBuffer);
 
         return Result.Ok(state);
     }

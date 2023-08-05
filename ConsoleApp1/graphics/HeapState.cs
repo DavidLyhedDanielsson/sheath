@@ -134,8 +134,13 @@ public class HeapState
     internal Heap vertexHeap;
     internal Heap indexHeap;
     internal Heap textureHeap;
-    internal Heap constantBufferHeap;
     internal DescriptorHeap cbvUavSrvDescriptorHeap;
+
+    internal Heap instanceDataHeap;
+    internal ID3D12Resource instanceDataBuffer;
+
+    internal Heap perDrawConstantBufferHeap;
+    internal ID3D12Resource perDrawBuffer;
 
     internal int surfaceCounter;
 }
