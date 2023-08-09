@@ -3,7 +3,9 @@ using StbiSharp;
 
 namespace ConsoleApp1.Asset;
 
-using Assimp;
+using System.Diagnostics;
+
+//using Assimp;
 using Silk.NET.Maths;
 
 public static class AssimpExtensions
@@ -89,7 +91,7 @@ public class AssetLoader
 
         bool hasAlpha = false;
 
-        MaterialProperty? gltfAlphaMode = material.GetProperty("$mat.gltf.alphaMode,0,0");
+        Assimp.MaterialProperty? gltfAlphaMode = material.GetProperty("$mat.gltf.alphaMode,0,0");
         if (gltfAlphaMode != null && gltfAlphaMode.GetStringValue() == "MASK")
         {
             hasAlpha = true;
@@ -186,5 +188,131 @@ public class AssetLoader
             catalogue.AddDefaultMaterial(meshWithMaterial.Mesh.Name, meshWithMaterial.SubmeshMaterials);
             meshes.Clear();
         }
+    }
+
+    public static void ImportHeightmap(AssetCatalogue catalogue, string file)
+    {
+        //Result<TextureData> textureRes = CreateTexture("", file);
+        byte[] fileBytes = File.ReadAllBytes(file);
+
+        var sideLength = (int)Math.Sqrt(fileBytes.Length / 2);
+        var heights = new ushort[sideLength, sideLength];
+
+        ReadOnlySpan<byte> span = fileBytes;
+        for (int y = 0; y < sideLength; ++y)
+        {
+            for (int x = 0; x < sideLength; ++x)
+                heights[y, x] = BitConverter.ToUInt16(span.Slice((y * sideLength + x) * 2, 2));
+        }
+
+        // if (!textureRes.IsSuccess)
+        // {
+        //     Console.Error.Write("Couldn't load file at ");
+        //     Console.Error.WriteLine(file);
+        // }
+
+        float minH = 9999999;
+        float maxH = -999999;
+
+        //TextureData texture = textureRes.Value;
+        var GetVertexAt = (int x, int y) =>
+        {
+            float xzScale = 2.0f;
+
+            float height = heights[Math.Clamp(y, 0, sideLength - 1), Math.Clamp(x, 0, sideLength - 1)];
+
+            //float minHeight = 121.0f;
+            //float maxHeight = 193.0f;
+
+            //float transformedHeight = (height - minHeight) / (maxHeight - minHeight);
+
+            minH = Math.Min(minH, height);
+            maxH = Math.Max(maxH, height);
+
+            return new Vector3D<float>(
+                x * xzScale - 109.2f,// - 350.0f,
+                height / 100.0f - 400f,
+                y * xzScale + 488);// + 400.0f);
+        };
+        List<Vector3D<float>> adjacent = new(4);
+
+        var vertices = new Vertex[sideLength * sideLength];
+        for (int y = 0; y < sideLength; ++y)
+        {
+            for (int x = 0; x < sideLength; ++x)
+            {
+                adjacent.Clear();
+
+                Vector3D<float> normal = Vector3D<float>.Zero;
+
+                adjacent.Add(GetVertexAt(x - 1, y));
+                adjacent.Add(GetVertexAt(x, y + 1));
+                adjacent.Add(GetVertexAt(x + 1, y));
+                adjacent.Add(GetVertexAt(x, y - 1));
+
+                Vector3D<float> vertexPosition = GetVertexAt(x, y);
+
+                var adj0 = adjacent[^1];
+                var adj1 = adjacent[0];
+
+                normal += Vector3D.Cross(adj0 - vertexPosition, adj1 - vertexPosition);
+
+                for (int i = 0; i < adjacent.Count - 1; ++i)
+                {
+                    adj0 = adjacent[i];
+                    adj1 = adjacent[i + 1];
+
+                    normal += Vector3D.Cross(adj0 - vertexPosition, adj1 - vertexPosition);
+                }
+
+                Debug.Assert(normal.LengthSquared != 0.0f);
+                if (normal.LengthSquared > 0.0f)
+                    normal = Vector3D.Normalize(normal);
+
+                // interpolate normal between steps
+
+                vertices[y * sideLength + x] = new Vertex
+                {
+                    Position = vertexPosition,
+                    Normal = normal,
+                    TextureCoordinates = new()
+                    {
+                        X = 0.0f,
+                        Y = 0.0f,
+                    },
+                };
+            }
+        }
+
+        var widthM = sideLength - 1;
+        var heightM = sideLength - 1;
+
+        var indices = new uint[heightM * widthM * 6];
+        for (int y = 0; y < heightM; ++y)
+        {
+            for (int x = 0; x < widthM; ++x)
+            {
+                int indexOffset = (y * widthM + x) * 6;
+
+                indices[indexOffset + 0] = (uint)(y * sideLength + x);
+                indices[indexOffset + 1] = (uint)((y + 1) * sideLength + x);
+                indices[indexOffset + 2] = (uint)(y * sideLength + (x + 1));
+
+                indices[indexOffset + 3] = (uint)((y + 1) * sideLength + x);
+                indices[indexOffset + 4] = (uint)((y + 1) * sideLength + (x + 1));
+                indices[indexOffset + 5] = (uint)(y * sideLength + (x + 1));
+            }
+        }
+
+        catalogue.AddVertexData(new VertexData()
+        {
+            Name = file,
+            Vertices = vertices,
+            Submeshes = new[] {
+                new Submesh() {
+                    Indices = indices,
+                }
+            },
+        });
     }
 }

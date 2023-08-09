@@ -208,6 +208,66 @@ public class LinearResourceBuilder : IResourceBuilder
         };
     }
 
+    public static Surface CreateTerrainSurface(Settings settings, GraphicsState graphicsState, HeapState heapState)
+    {
+        var vertexShader = Graphics.Utils.CompileVertexShader("terrain.hlsl").LogIfFailed().Value;
+        var pixelShader = Graphics.Utils.CompilePixelShader("terrain.hlsl").LogIfFailed().Value;
+
+        var pipelineState = graphicsState.device.CreateGraphicsPipelineState(new GraphicsPipelineStateDescription
+        {
+            RootSignature = graphicsState.rootSignature,
+            VertexShader = vertexShader.GetObjectBytecodeMemory(),
+            PixelShader = pixelShader.GetObjectBytecodeMemory(),
+            DomainShader = null,
+            HullShader = null,
+            GeometryShader = null,
+            StreamOutput = null,
+            BlendState = BlendDescription.Opaque,
+            SampleMask = uint.MaxValue,
+            RasterizerState = new RasterizerDescription
+            {
+                FillMode = FillMode.Solid,
+                CullMode = CullMode.None, // TODO
+                FrontCounterClockwise = true,
+                DepthBias = 0,
+                DepthBiasClamp = 0,
+                SlopeScaledDepthBias = 0,
+                DepthClipEnable = true,
+                MultisampleEnable = false,
+                AntialiasedLineEnable = false,
+                ForcedSampleCount = 0,
+                ConservativeRaster = ConservativeRasterizationMode.Off
+            },
+            DepthStencilState = DepthStencilDescription.ReverseZ,
+            InputLayout = null,
+            IndexBufferStripCutValue = IndexBufferStripCutValue.Disabled,
+            PrimitiveTopologyType = PrimitiveTopologyType.Triangle,
+            RenderTargetFormats = new Format[]
+            {
+                settings.Graphics.BackBufferFormat,
+            },
+            DepthStencilFormat = settings.Graphics.DepthStencilFormat,
+            SampleDescription = SampleDescription.Default,
+            NodeMask = 0,
+            CachedPSO = default,
+            Flags = PipelineStateFlags.None
+        });
+
+        return new Surface
+        {
+            ID = heapState.surfaceCounter++,
+            PSO = new PSO
+            {
+                ID = 2, // TODO :)
+                ID3D12PipelineState = pipelineState,
+            },
+            AlbedoTexture = new Texture
+            {
+                ID = -1
+            },
+        };
+    }
+
     public static Result<HeapState> CreateHeapState(GraphicsState graphicsState)
     {
         ID3D12DescriptorHeap id3d12DescriptorHeap = graphicsState.device.CreateDescriptorHeap(

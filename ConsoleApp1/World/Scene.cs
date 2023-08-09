@@ -118,10 +118,12 @@ public class Scene
         }
     }
 
+    public int DrawCounter { get; private set; } = 0;
+
     public void Render(GraphicsState graphicsState, ID3D12Resource instanceDataBuffer, ID3D12Resource perDrawBuffer)
     {
         int instanceCounter = 0;
-        int drawCounter = 0;
+        DrawCounter = 0;
 
         foreach (KeyValuePair<int, List<SubmeshRef>> psoRenderInfo in _psos)
         {
@@ -149,7 +151,7 @@ public class Scene
                 {
                     byte* data;
                     perDrawBuffer.Map(0, (void**)&data);
-                    data += drawCounter * 256;
+                    data += DrawCounter * 256;
 
                     int textureId = submesh.Surface.AlbedoTexture.ID;
                     int vertexBufferId = submesh.VIBufferView.VertexBufferId;
@@ -164,10 +166,10 @@ public class Scene
 
                 instanceCounter += instanceData.Count;
 
-                graphicsState.commandList.SetGraphicsRootConstantBufferView(0, perDrawBuffer.GPUVirtualAddress + (ulong)(drawCounter * 256));
+                graphicsState.commandList.SetGraphicsRootConstantBufferView(0, perDrawBuffer.GPUVirtualAddress + (ulong)(DrawCounter * 256));
                 graphicsState.commandList.DrawIndexedInstanced(submesh.VIBufferView.IndexCount, instanceData.Count, submesh.VIBufferView.IndexStart, 0, 0);
 
-                drawCounter++;
+                DrawCounter += 1;
             }
         }
     }

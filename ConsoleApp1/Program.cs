@@ -7,6 +7,8 @@ using System.Diagnostics;
 using static System.Runtime.InteropServices.Marshal;
 using Silk.NET.Maths;
 using ConsoleApp1.World;
+using ImGuiNET;
+using ImGuiBackend;
 
 namespace ConsoleApp1
 {
@@ -49,6 +51,7 @@ namespace ConsoleApp1
 
             AssetCatalogue assetCatalogue = new();
             AssetLoader.Import(assetCatalogue, "Map/Main.gltf");
+            AssetLoader.ImportHeightmap(assetCatalogue, "Map/terrain.r16");
 
             SDL_SysWMinfo wmInfo = new();
             SDL_VERSION(out wmInfo.version);
@@ -60,6 +63,14 @@ namespace ConsoleApp1
             if (graphicsStateResult.IsFailed)
                 return -2;
             GraphicsState graphicsState = graphicsStateResult.Value;
+
+            ImGui.CreateContext();
+            ImGui.StyleColorsDark();
+            ImGuiBackend.Renderer imGuiRenderer = new();
+            var imGuiDescHeap = graphicsState.device.CreateDescriptorHeap(new(DescriptorHeapType.ConstantBufferViewShaderResourceViewUnorderedAccessView, 1, DescriptorHeapFlags.ShaderVisible));
+            imGuiRenderer.ImGui_ImplDX12_Init(graphicsState.device, settings.Graphics.BackBufferCount, settings.Graphics.BackBufferFormat, null, imGuiDescHeap.GetCPUDescriptorHandleForHeapStart(), imGuiDescHeap.GetGPUDescriptorHandleForHeapStart());
+
+            ImGuiBackend.SdlBackend imGuiSdlBackend = new(sdlWindow);
 
             var loadCycle = new string[]
             {
@@ -120,6 +131,9 @@ namespace ConsoleApp1
                 meshNames.Add(vertexData.Name, mesh);
             });
 
+            Mesh terrainMesh = LinearResourceBuilder.CreateMesh(graphicsState, heapState, assetCatalogue.GetVertexData("Map/terrain.r16")!);
+            Surface terrainSurface = LinearResourceBuilder.CreateTerrainSurface(settings, graphicsState, heapState);
+
             Scene scene = new();
 
             //int added = 0;
@@ -178,6 +192,7 @@ namespace ConsoleApp1
             {
                 while (SDL_PollEvent(out SDL_Event ev) != 0)
                 {
+                    imGuiSdlBackend.ImGui_ImplSDL2_ProcessEvent(ev);
                     switch (ev.type)
                     {
                         case SDL_EventType.SDL_QUIT:
@@ -203,6 +218,15 @@ namespace ConsoleApp1
                     center,
                     Vector3D<float>.UnitY
                 );
+                // Matrix4X4<float> viewMatrix = Matrix4X4.CreateLookAt(
+                //     new Vector3D<float>(
+                //         MathF.Cos((float)uptime.Elapsed.TotalSeconds) * radius,
+                //         30.0f,
+                //         MathF.Sin((float)uptime.Elapsed.TotalSeconds) * radius
+                //     ),
+                //     Vector3D<float>.Zero,
+                //     Vector3D<float>.UnitY
+                // );
                 Matrix4X4<float> projMatrix = Matrix4X4.CreatePerspectiveFieldOfView(59.0f * (MathF.PI / 180.0f),
                     settings.Window.Width / (float)settings.Window.Height, 50000.0f, 0.001f);
                 Matrix4X4<float> viewProjMatrix = Matrix4X4.Transpose(viewMatrix * projMatrix);
@@ -239,6 +263,7 @@ namespace ConsoleApp1
                     graphicsState.rtvDescriptorHeap.GetCPUDescriptorHandleForHeapStart() + frameIndex * graphicsState.rtvDescriptorSize,
                     graphicsState.dsvDescriptorHeap.GetCPUDescriptorHandleForHeapStart()
                 );
+
                 commandList.RSSetViewport(0.0f, 0.0f, settings.Window.Width, settings.Window.Height);
                 commandList.RSSetScissorRect(settings.Window.Width, settings.Window.Height);
                 commandList.IASetPrimitiveTopology(Vortice.Direct3D.PrimitiveTopology.TriangleList);
@@ -247,6 +272,37 @@ namespace ConsoleApp1
                 commandList.SetGraphicsRootDescriptorTable(1, heapState.cbvUavSrvDescriptorHeap.ID3D12DescriptorHeap.GetGPUDescriptorHandleForHeapStart());
 
                 scene.Render(graphicsState, heapState.instanceDataBuffer, heapState.perDrawBuffer);
+
+                commandList.SetPipelineState(terrainSurface.PSO.ID3D12PipelineState);
+                commandList.IASetIndexBuffer(new IndexBufferView(terrainMesh.BufferViews[0].IndexBuffer.GPUVirtualAddress, terrainMesh.BufferViews[0].IndexBufferTotalCount * SizeOf(typeof(uint)), Vortice.DXGI.Format.R32_UInt));
+
+                unsafe
+                {
+                    byte* data;
+                    heapState.perDrawBuffer.Map(0, (void**)&data);
+                    data += (scene.DrawCounter + 1) * 256;
+
+                    int textureId = -1;
+                    int instanceDataStartOffset = -1;
+                    int vertexBufferId = terrainMesh.BufferViews[0].VertexBufferId;
+
+                    Buffer.MemoryCopy(&vertexBufferId, data, 4, 4);
+                    Buffer.MemoryCopy(&textureId, data + 4, 4, 4);
+                    Buffer.MemoryCopy(&instanceDataStartOffset, data + 4 + 4, 4, 4);
+
+                    heapState.perDrawBuffer.Unmap(0);
+                }
+
+                graphicsState.commandList.SetGraphicsRootConstantBufferView(0, heapState.perDrawBuffer.GPUVirtualAddress + (ulong)((scene.DrawCounter + 1) * 256));
+                commandList.DrawIndexedInstanced(terrainMesh.BufferViews[0].IndexCount, 1, terrainMesh.BufferViews[0].IndexStart, 0, 0);
+
+                imGuiRenderer.ImGui_ImplDX12_NewFrame();
+                imGuiSdlBackend.ImGui_ImplSDL2_NewFrame();
+                ImGui.NewFrame();
+
+                ImGui.Render();
+                commandList.SetDescriptorHeaps(imGuiDescHeap);
+                imGuiRenderer.ImGui_ImplDX12_RenderDrawData(ImGui.GetDrawData(), graphicsState.commandList);
 
                 commandList.ResourceBarrier(new ResourceBarrier(new ResourceTransitionBarrier(
                     graphicsState.renderTargets[frameIndex], ResourceStates.RenderTarget, ResourceStates.Common)));
