@@ -26,7 +26,6 @@ namespace ImGuiBackend
         internal ID3D12Resource pFontTextureResource;
         internal CpuDescriptorHandle hFontSrvCpuDescHandle;
         internal GpuDescriptorHandle hFontSrvGpuDescHandle;
-        internal ID3D12DescriptorHeap pd3dSrvDescHeap; // TODO: Unused?
         internal uint numFramesInFlight;
 
         internal ImGui_ImplDX12_RenderBuffers[] FrameResources;
@@ -692,8 +691,7 @@ float4 main(PS_INPUT input) : SV_Target
             }
         }
 
-        public bool ImGui_ImplDX12_Init(ID3D12Device device, int num_frames_in_flight, Format rtv_format, ID3D12DescriptorHeap cbv_srv_heap,
-                                 CpuDescriptorHandle font_srv_cpu_desc_handle, GpuDescriptorHandle font_srv_gpu_desc_handle)
+        public bool ImGui_ImplDX12_Init(ID3D12Device device, int num_frames_in_flight, Format rtv_format, CpuDescriptorHandle font_srv_cpu_desc_handle, GpuDescriptorHandle font_srv_gpu_desc_handle)
         {
             ImGuiIOPtr io = ImGui.GetIO();
             //Debug.Assert(io.BackendRendererUserData == null);
@@ -708,7 +706,6 @@ float4 main(PS_INPUT input) : SV_Target
                 hFontSrvGpuDescHandle = font_srv_gpu_desc_handle,
                 FrameResources = new ImGui_ImplDX12_RenderBuffers[num_frames_in_flight],
                 numFramesInFlight = (uint)num_frames_in_flight,
-                pd3dSrvDescHeap = cbv_srv_heap,
                 frameIndex = uint.MaxValue,
             };
             //io.BackendRendererUserData = bd;

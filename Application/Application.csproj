@@ -1,0 +1,91 @@
+﻿<Project Sdk="Microsoft.NET.Sdk">
+
+    <PropertyGroup>
+        <OutputType>Exe</OutputType>
+        <TargetFramework>net7.0</TargetFramework>
+        <ImplicitUsings>enable</ImplicitUsings>
+        <Nullable>enable</Nullable>
+    </PropertyGroup>
+
+    <ItemGroup>
+      <None Remove="Asset\Prop\phone.bin" />
+      <None Remove="Asset\Prop\phone.gltf" />
+      <None Remove="Asset\Prop\Phone_BaseColor.png" />
+      <None Remove="Asset\Prop\Phone_Normal.png" />
+      <None Remove="Asset\Prop\Phone_ORM.png" />
+      <None Remove="SDL2.dll" />
+      <None Remove="Src\Graphics\shader\ps\pixel.hlsl" />
+      <None Remove="Src\Graphics\shader\ps\pixel_alphamask.hlsl" />
+      <None Remove="Src\Graphics\shader\ps\terrain.hlsl" />
+      <None Remove="Src\Graphics\shader\vs\terrain.hlsl" />
+      <None Remove="Src\Graphics\shader\vs\vertex.hlsl" />
+    </ItemGroup>
+
+    <ItemGroup>
+      <Content Include="Asset\Prop\phone.bin">
+        <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+      </Content>
+      <Content Include="Asset\Prop\phone.gltf">
+        <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+      </Content>
+      <Content Include="Asset\Prop\Phone_BaseColor.png">
+        <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+      </Content>
+      <Content Include="Asset\Prop\Phone_Normal.png">
+        <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+      </Content>
+      <Content Include="Asset\Prop\Phone_ORM.png">
+        <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+      </Content>
+      <Content Include="SDL2.dll">
+        <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+      </Content>
+      <Content Include="Src\Graphics\shader\ps\pixel.hlsl">
+        <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+      </Content>
+      <Content Include="Src\Graphics\shader\ps\pixel_alphamask.hlsl">
+        <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+      </Content>
+      <Content Include="Src\Graphics\shader\ps\terrain.hlsl">
+        <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+      </Content>
+      <Content Include="Src\Graphics\shader\vs\terrain.hlsl">
+        <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+      </Content>
+      <Content Include="Src\Graphics\shader\vs\vertex.hlsl">
+        <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+      </Content>
+    </ItemGroup>
+
+    <ItemGroup>
+      <PackageReference Include="Arch" Version="1.2.5" />
+      <PackageReference Include="AssimpNet" Version="5.0.0-beta1" />
+      <PackageReference Include="FluentResults" Version="3.15.2" />
+      <PackageReference Include="ImGui.NET" Version="1.89.7.1" />
+      <PackageReference Include="Microsoft.Windows.CsWin32" Version="0.3.2-beta">
+        <PrivateAssets>all</PrivateAssets>
+      </PackageReference>
+      <PackageReference Include="Optional" Version="4.0.0" />
+      <PackageReference Include="sdl2.nuget" Version="2.28.2" />
+      <PackageReference Include="Silk.NET.Maths" Version="2.17.1" />
+      <PackageReference Include="StbiSharp" Version="1.2.1" />
+      <PackageReference Include="Vortice.Direct3D12" Version="3.2.0" />
+      <PackageReference Include="Vortice.DirectX" Version="3.2.0" />
+      <PackageReference Include="Vortice.Dxc" Version="3.2.0" />
+      <PackageReference Include="Vortice.DXGI" Version="3.2.0" />
+      <PackageReference Include="Vortice.Mathematics" Version="1.6.2" />
+      <PackageReference Include="Vortice.Win32" Version="1.9.34" />
+      <PackageReference Include="YamlDotNet" Version="13.1.1" />
+    </ItemGroup>
+
+    <ItemGroup>
+      <ProjectReference Include="..\ImGuiBackend\ImGuiBackend.csproj" />
+    </ItemGroup>
+
+    <ItemGroup>
+      <None Update="Deps\SDL2.dll">
+        <CopyToOutputDirectory>Never</CopyToOutputDirectory>
+      </None>
+    </ItemGroup>
+
+</Project>
