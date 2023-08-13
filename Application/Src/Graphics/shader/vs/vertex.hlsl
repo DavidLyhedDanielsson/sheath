@@ -1,6 +1,7 @@
 struct VertexIn {
     float3 position;
     float3 normal;
+    float3 tangent;
     float2 texCoords;
 };
 
@@ -38,7 +39,7 @@ VertexOut main(uint vertexId: SV_VERTEXID, uint instanceId: SV_InstanceID) {
     float3x3 normalMatrix = float3x3(1.0f / sx * transform[0], 1.0f / sy * transform[1], 1.0f / sz * transform[2]);
 
     VertexOut vertexOut;
-    vertexOut.svPosition = mul(mul(instanceData.transform, float4(vertexIn.position, 1.0f)), projMatrix);
+    vertexOut.svPosition = mul(mul(instanceData.transform, float4(vertexIn.position + float3(0.0f, 0.0f, 0.0f), 1.0f)), projMatrix);
     vertexOut.normal = mul(vertexIn.normal, normalMatrix);
     vertexOut.texCoords = vertexIn.texCoords;
     return vertexOut;

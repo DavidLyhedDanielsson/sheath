@@ -13,12 +13,9 @@ struct Vertex {
 };
 
 float4 main(Vertex vertex) : SV_TARGET {
-    //float2 texCoords = float2(vertex.texCoords.x, 1.0f - vertex.texCoords.y);
+    float2 texCoords = float2(vertex.texCoords.x, 1.0f - vertex.texCoords.y);
 
-    //float4 colour = float4(textures[surfaceID].Sample(samp, texCoords).xyz, 1.0f);
+    float4 colour = float4(textures[surfaceID].Sample(samp, texCoords).xyz, 1.0f);
 
-    //return colour;
-
-    float fac = dot(normalize(float3(1.0f, 1.0f, 1.0f)), normalize(vertex.normal));
-    return float4(fac, fac, fac, 1.0f);
+    return colour;
 }

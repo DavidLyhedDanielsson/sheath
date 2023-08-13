@@ -53,6 +53,7 @@ public class AssetLoader
                 {
                     Position = mesh.Vertices[i].ToVector3(),
                     Normal = mesh.Normals[i].ToVector3(),
+                    Tangent = mesh.Tangents[i].ToVector3(),
                     TextureCoordinates = mesh.TextureCoordinateChannels[0][i].ToVector2(),
                 };
             }
@@ -267,12 +268,11 @@ public class AssetLoader
                 if (normal.LengthSquared > 0.0f)
                     normal = Vector3D.Normalize(normal);
 
-                // interpolate normal between steps
-
                 vertices[y * sideLength + x] = new Vertex
                 {
                     Position = vertexPosition,
                     Normal = normal,
+                    Tangent = normal, // TODO
                     TextureCoordinates = new()
                     {
                         X = 0.0f,

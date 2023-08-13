@@ -33,6 +33,8 @@ public class GraphicsState
     public int rtvDescriptorSize;
     public int dsvDescriptorSize;
 
+    public List<PSO> livePsos;
+
     private static void DebugCallback(MessageCategory category, MessageSeverity severity, MessageId id, string description)
     {
         Console.WriteLine(description);
@@ -179,6 +181,8 @@ public class GraphicsState
 
         state.fence = state.device.CreateFence();
         state.fenceEvent = new AutoResetEvent(false);
+
+        state.livePsos = new List<PSO>();
 
         return Result.Ok(state);
     }

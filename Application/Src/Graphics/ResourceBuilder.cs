@@ -4,6 +4,7 @@ using Application.Models;
 using FluentResults;
 using Silk.NET.Maths;
 using Vortice.Direct3D12;
+using Vortice.Dxc;
 using Vortice.DXGI;
 using static System.Runtime.InteropServices.Marshal;
 
@@ -146,6 +147,70 @@ public class LinearResourceBuilder : IResourceBuilder
         return new Texture { ID = textureId };
     }
 
+    public static void RecreatePsos(Settings settings, GraphicsState graphicsState, string? vertexShaderPath, string? pixelShaderPath)
+    {
+        foreach(PSO pso in graphicsState.livePsos)
+        {
+            if (pso.VertexShader != vertexShaderPath && pso.PixelShader != pixelShaderPath)
+                continue;
+
+            IDxcResult vertexShader;
+            if(vertexShaderPath != null)
+                vertexShader = Graphics.Utils.CompileVertexShader(vertexShaderPath).LogIfFailed().Value;
+            else
+                vertexShader = Graphics.Utils.CompileVertexShader(pso.VertexShader).LogIfFailed().Value;
+
+            IDxcResult pixelShader;
+            if(pixelShaderPath != null)
+                pixelShader = Graphics.Utils.CompilePixelShader(pixelShaderPath).LogIfFailed().Value;
+            else
+                pixelShader = Graphics.Utils.CompilePixelShader(pso.PixelShader).LogIfFailed().Value;
+
+            var pipelineState = graphicsState.device.CreateGraphicsPipelineState(new GraphicsPipelineStateDescription
+            {
+                RootSignature = graphicsState.rootSignature,
+                VertexShader = vertexShader.GetObjectBytecodeMemory(),
+                PixelShader = pixelShader.GetObjectBytecodeMemory(),
+                DomainShader = null,
+                HullShader = null,
+                GeometryShader = null,
+                StreamOutput = null,
+                BlendState = BlendDescription.Opaque,
+                SampleMask = uint.MaxValue,
+                RasterizerState = new RasterizerDescription
+                {
+                    FillMode = FillMode.Solid,
+                    CullMode = pso.BackfaceCulling ? CullMode.Back : CullMode.None,
+                    FrontCounterClockwise = true,
+                    DepthBias = 0,
+                    DepthBiasClamp = 0,
+                    SlopeScaledDepthBias = 0,
+                    DepthClipEnable = true,
+                    MultisampleEnable = false,
+                    AntialiasedLineEnable = false,
+                    ForcedSampleCount = 0,
+                    ConservativeRaster = ConservativeRasterizationMode.Off
+                },
+                DepthStencilState = DepthStencilDescription.ReverseZ,
+                InputLayout = null,
+                IndexBufferStripCutValue = IndexBufferStripCutValue.Disabled,
+                PrimitiveTopologyType = PrimitiveTopologyType.Triangle,
+                RenderTargetFormats = new Format[]
+                {
+                    settings.Graphics.BackBufferFormat,
+                },
+                DepthStencilFormat = settings.Graphics.DepthStencilFormat,
+                SampleDescription = SampleDescription.Default,
+                NodeMask = 0,
+                CachedPSO = default,
+                Flags = PipelineStateFlags.None
+            });
+
+            pso.ID3D12PipelineState.Release();
+            pso.ID3D12PipelineState = pipelineState;
+        }
+    }
+
     public static Surface CreateSurface(Settings settings, GraphicsState graphicsState, HeapState heapState, Material material, Dictionary<string, Texture> textures)
     {
         var vertexShader = Graphics.Utils.CompileVertexShader("vertex.hlsl").LogIfFailed().Value;
@@ -196,18 +261,25 @@ public class LinearResourceBuilder : IResourceBuilder
         textures.TryGetValue(material.AlbedoTexture, out Texture? albedoTexture);
         Debug.Assert(albedoTexture != null);
 
+        PSO pso = new PSO
+        {
+            VertexShader = "vertex.hlsl",
+            PixelShader = "pixel.hlsl",
+            BackfaceCulling = !material.AlbedoTextureHasAlpha,
+            ID = material.AlbedoTextureHasAlpha ? 1 : 0, // TODO :)
+            ID3D12PipelineState = pipelineState,
+        };
+
+        graphicsState.livePsos.Add(pso);
+
         return new Surface
         {
             ID = heapState.surfaceCounter++,
-            PSO = new PSO
-            {
-                ID = material.AlbedoTextureHasAlpha ? 1 : 0, // TODO :)
-                ID3D12PipelineState = pipelineState,
-            },
+            PSO = pso,
             AlbedoTexture = albedoTexture,
         };
     }
-
+    
     public static Surface CreateTerrainSurface(Settings settings, GraphicsState graphicsState, HeapState heapState)
     {
         var vertexShader = Graphics.Utils.CompileVertexShader("terrain.hlsl").LogIfFailed().Value;
@@ -258,6 +330,9 @@ public class LinearResourceBuilder : IResourceBuilder
             ID = heapState.surfaceCounter++,
             PSO = new PSO
             {
+                VertexShader = "terrain.hlsl",
+                PixelShader = "terrain.hlsl",
+                BackfaceCulling = false,
                 ID = 2, // TODO :)
                 ID3D12PipelineState = pipelineState,
             },

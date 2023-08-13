@@ -11,6 +11,8 @@ using Arch.Core;
 using System.Runtime.InteropServices;
 using static System.Runtime.InteropServices.Marshal;
 using Vortice.DXGI;
+using System.Reflection.Metadata.Ecma335;
+using System.Text.RegularExpressions;
 
 namespace Application
 {
@@ -184,9 +186,58 @@ namespace Application
                         Vector3D<float>.UnitY
             );
 
+            // Reload shaders
+            List<RenamedEventArgs> reloadFiles = new();
+
+            // VS saves a file to a tmp, renames old file to tmp, then renames the first tmp to the file name
+            using var vsWatcher = new FileSystemWatcher(Utils.ShaderRootPath + "/vs");
+            vsWatcher.NotifyFilter = NotifyFilters.FileName;
+            vsWatcher.Filter = "*.hlsl";
+            vsWatcher.Renamed += (object sender, RenamedEventArgs args) =>
+            {
+                if (args.Name.EndsWith(".TMP"))
+                    return;
+
+                reloadFiles.Add(args);
+            };
+            vsWatcher.EnableRaisingEvents = true;
+
+            using var psWatcher = new FileSystemWatcher(Utils.ShaderRootPath + "/ps");
+            psWatcher.NotifyFilter = NotifyFilters.FileName;
+            psWatcher.Filter = "*.hlsl";
+            psWatcher.Renamed += (object sender, RenamedEventArgs args) =>
+            {
+                if (args.Name.EndsWith(".TMP"))
+                    return;
+
+                reloadFiles.Add(args);
+            };
+            psWatcher.EnableRaisingEvents = true;
+
             var running = true;
             while (running)
             {
+                // Reload shaders
+                for(int i = reloadFiles.Count - 1; i >= 0; --i)
+                {
+                    RenamedEventArgs reloadArgs = reloadFiles[i];
+
+                    try
+                    {
+                        if (Regex.IsMatch(reloadArgs.FullPath, @"[/\\]ps[/\\]"))
+                            LinearResourceBuilder.RecreatePsos(settings, graphicsState, null, reloadArgs.Name);
+                        else if (Regex.IsMatch(reloadArgs.FullPath, @"[/\\]vs[/\\]"))
+                            LinearResourceBuilder.RecreatePsos(settings, graphicsState, reloadArgs.Name, null);
+
+                        reloadFiles.RemoveAt(i);
+                    }
+                    catch(System.IO.IOException ex)
+                    {
+                        // :( Try again
+                        Console.WriteLine(ex.ToString());
+                    }
+                }
+
                 while (SDL_PollEvent(out SDL_Event ev) != 0)
                 {
                     imGuiSdlBackend.ImGui_ImplSDL2_ProcessEvent(ev);
@@ -201,6 +252,8 @@ namespace Application
                             break;
                     }
                 }
+
+
 
                 if (spinCamera)
                 {

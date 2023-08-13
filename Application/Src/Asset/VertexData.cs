@@ -6,6 +6,7 @@ public readonly struct Vertex
 {
     public required Vector3D<float> Position { get; init; }
     public required Vector3D<float> Normal { get; init; }
+    public required Vector3D<float> Tangent { get; init; }
     public required Vector2D<float> TextureCoordinates { get; init; }
 }
 
