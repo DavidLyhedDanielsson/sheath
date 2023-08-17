@@ -91,7 +91,7 @@ class LinearUploader
             TextureCopyLocation source = new(_uploadBuffer, new PlacedSubresourceFootPrint
             {
                 Offset = startOffset,
-                Footprint = new SubresourceFootPrint(Vortice.DXGI.Format.R8G8B8A8_UNorm, texture.Width, texture.Height, 1, checked((int)rowByteSize)),
+                Footprint = new SubresourceFootPrint(Utils.ChannelsToDXGIFormat(texture.Channels), texture.Width, texture.Height, 1, checked((int)rowByteSize)),
             });
 
             commandList.CopyTextureRegion(destination, 0, 0, 0, source);

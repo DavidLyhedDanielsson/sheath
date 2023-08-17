@@ -8,20 +8,26 @@
     </PropertyGroup>
 
     <ItemGroup>
+      <None Remove="Asset\Bulb.png" />
       <None Remove="Asset\Prop\phone.bin" />
       <None Remove="Asset\Prop\phone.gltf" />
       <None Remove="Asset\Prop\Phone_BaseColor.png" />
       <None Remove="Asset\Prop\Phone_Normal.png" />
       <None Remove="Asset\Prop\Phone_ORM.png" />
       <None Remove="SDL2.dll" />
+      <None Remove="Src\Graphics\shader\ps\billboard.hlsl" />
       <None Remove="Src\Graphics\shader\ps\pixel.hlsl" />
       <None Remove="Src\Graphics\shader\ps\pixel_alphamask.hlsl" />
       <None Remove="Src\Graphics\shader\ps\terrain.hlsl" />
+      <None Remove="Src\Graphics\shader\vs\billboard.hlsl" />
       <None Remove="Src\Graphics\shader\vs\terrain.hlsl" />
       <None Remove="Src\Graphics\shader\vs\vertex.hlsl" />
-    </ItemGroup>
+    </ItemGroup>	
 
     <ItemGroup>
+      <Content Include="Asset\Bulb.png">
+        <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+      </Content>
       <Content Include="Asset\Prop\phone.bin">
         <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
       </Content>
@@ -40,6 +46,9 @@
       <Content Include="SDL2.dll">
         <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
       </Content>
+      <Content Include="Src\Graphics\shader\ps\billboard.hlsl">
+        <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+      </Content>
       <Content Include="Src\Graphics\shader\ps\pixel.hlsl">
         <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
       </Content>
@@ -47,6 +56,9 @@
         <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
       </Content>
       <Content Include="Src\Graphics\shader\ps\terrain.hlsl">
+        <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+      </Content>
+      <Content Include="Src\Graphics\shader\vs\billboard.hlsl">
         <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
       </Content>
       <Content Include="Src\Graphics\shader\vs\terrain.hlsl">
@@ -59,7 +71,6 @@
 
     <ItemGroup>
       <PackageReference Include="Arch" Version="1.2.5" />
-      <PackageReference Include="AssimpNet" Version="5.0.0-beta1" />
       <PackageReference Include="FluentResults" Version="3.15.2" />
       <PackageReference Include="ImGui.NET" Version="1.89.7.1" />
       <PackageReference Include="Microsoft.Windows.CsWin32" Version="0.3.2-beta">
@@ -67,6 +78,7 @@
       </PackageReference>
       <PackageReference Include="Optional" Version="4.0.0" />
       <PackageReference Include="sdl2.nuget" Version="2.28.2" />
+      <PackageReference Include="Silk.NET.Assimp" Version="2.17.1" />
       <PackageReference Include="Silk.NET.Maths" Version="2.17.1" />
       <PackageReference Include="StbiSharp" Version="1.2.1" />
       <PackageReference Include="Vortice.Direct3D12" Version="3.2.0" />
@@ -80,6 +92,15 @@
 
     <ItemGroup>
       <ProjectReference Include="..\ImGuiBackend\ImGuiBackend.csproj" />
+    </ItemGroup>
+
+    <ItemGroup>
+      <Compile Update="Src\Graphics\shader\shared\FrameData.cs">
+        <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+      </Compile>
+      <Compile Update="Src\Graphics\shader\shared\ModelData.cs">
+        <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+      </Compile>
     </ItemGroup>
 
     <ItemGroup>

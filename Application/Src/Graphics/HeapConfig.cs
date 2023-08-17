@@ -13,14 +13,14 @@ public static class HeapConfig
     {
         Start = 0,
 
-        CBV = 1,
+        CBV = 1, // camera config, per-frame variables
         Texture = 2,
         VertexBuffer = 3,
         Surfaces = 4,
         InstanceDatas = 5,
     };
 
-    private static readonly int[] _sizes = new int[] {
+    private static readonly int[] _segmentSizes = new int[] {
         0,    // start, just leave this as 0
         4,    // CBV
         1024, // Texture
@@ -40,22 +40,22 @@ public static class HeapConfig
 
     public readonly struct ArraySize
     {
-        public static readonly int cbvs = _sizes[(int)Type.CBV];
-        public static readonly int textures = _sizes[(int)Type.Texture];
-        public static readonly int vertexBuffers = _sizes[(int)Type.VertexBuffer];
-        public static readonly int surfaces = _sizes[(int)Type.Surfaces];
-        public static readonly int instanceDatas = _sizes[(int)Type.InstanceDatas];
-        public static readonly int total = _sizes.Sum();
+        public static readonly int cbvs = _segmentSizes[(int)Type.CBV];
+        public static readonly int textures = _segmentSizes[(int)Type.Texture];
+        public static readonly int vertexBuffers = _segmentSizes[(int)Type.VertexBuffer];
+        public static readonly int surfaces = _segmentSizes[(int)Type.Surfaces];
+        public static readonly int instanceDatas = _segmentSizes[(int)Type.InstanceDatas];
+        public static readonly int total = _segmentSizes.Sum();
     };
 
     public readonly struct DescriptorOffsetFromStart
     {
         // Sum all previous entries
-        public static readonly int cbvs = _sizes.Take((int)Type.CBV).Skip(1).Sum();
-        public static readonly int textures = _sizes.Take((int)Type.Texture).Skip(1).Sum();
-        public static readonly int vertexBuffers = _sizes.Take((int)Type.VertexBuffer).Skip(1).Sum();
-        public static readonly int surfaces = _sizes.Take((int)Type.Surfaces).Skip(1).Sum();
-        public static readonly int instanceDatas = _sizes.Take((int)Type.InstanceDatas).Skip(1).Sum();
+        public static readonly int cbvs = _segmentSizes.Take((int)Type.CBV).Skip(1).Sum();
+        public static readonly int textures = _segmentSizes.Take((int)Type.Texture).Skip(1).Sum();
+        public static readonly int vertexBuffers = _segmentSizes.Take((int)Type.VertexBuffer).Skip(1).Sum();
+        public static readonly int surfaces = _segmentSizes.Take((int)Type.Surfaces).Skip(1).Sum();
+        public static readonly int instanceDatas = _segmentSizes.Take((int)Type.InstanceDatas).Skip(1).Sum();
     };
 
     public struct BaseRegister

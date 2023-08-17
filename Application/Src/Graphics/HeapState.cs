@@ -80,6 +80,7 @@ internal class DescriptorHeapSegment
 
     public CpuDescriptorHandle NextCpuHandle()
     {
+        Debug.Assert(Used < Size);
         return BaseHandle.Offset(Used++, HandleSize);
     }
 }

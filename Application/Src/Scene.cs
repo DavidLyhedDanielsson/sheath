@@ -40,7 +40,7 @@ public class Scene
         );
     }
 
-    public void AddInstancesFromFile(Showroom showroom, string filePath)
+    /*public void AddInstancesFromFile(Showroom showroom, string filePath)
     {
         var importer = new Assimp.AssimpContext();
         var scene = importer.ImportFile(filePath, Assimp.PostProcessPreset.TargetRealTimeQuality);
@@ -80,7 +80,7 @@ public class Scene
         };
 
         AddInstancesFrom(scene.RootNode);
-    }
+    }*/
 
     public void AddInstance(Model model, InstanceData instanceData)
     {

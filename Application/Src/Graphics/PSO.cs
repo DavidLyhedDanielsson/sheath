@@ -8,6 +8,7 @@ public class PSO
     public required string PixelShader { get; init; }
     public required bool BackfaceCulling { get; init; }
     public required int ID { get; init; }
+    public required RasterizerDescription RasterizerDescription { get; init; }
     public required ID3D12PipelineState ID3D12PipelineState { get; set; }
 }
 

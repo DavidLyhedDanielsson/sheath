@@ -7,5 +7,8 @@ public class Surface
 {
     public required int ID { get; init; }
     public required PSO PSO { get; init; }
+    // TODO: Some of these might be null
     public required Texture AlbedoTexture { get; init; }
+    public required Texture NormalTexture { get; init; }
+    public required Texture ORMTexture { get; init; }
 }

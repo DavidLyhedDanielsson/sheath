@@ -13,6 +13,8 @@ using static System.Runtime.InteropServices.Marshal;
 using Vortice.DXGI;
 using System.Reflection.Metadata.Ecma335;
 using System.Text.RegularExpressions;
+using System.Numerics;
+using Application.Graphics.shader;
 
 namespace Application
 {
@@ -87,6 +89,17 @@ namespace Application
             Dictionary<string, Surface> surfaceNames = new();
             Dictionary<string, Mesh> meshNames = new();
 
+            // Create bulb stuff
+            {
+                Texture texture = LinearResourceBuilder.CreateTexture(graphicsState, heapState, AssetLoader.CreateTexture("Asset/", "Bulb.png").LogIfFailed().Value);
+                textureNames.Add("Bulb.png", texture);
+
+                Surface surface = LinearResourceBuilder.CreateBillboardSurface(settings, graphicsState, heapState, texture);
+                surfaceNames.Add("Bulb", surface);
+            }
+
+            Surface bulbSurface = surfaceNames["Bulb"];
+
             assetCatalogue.ForEachTextureData(textureData =>
             {
                 Texture texture = LinearResourceBuilder.CreateTexture(graphicsState, heapState, textureData);
@@ -135,12 +148,12 @@ namespace Application
                 VIBufferViews = phoneModel.Submeshes.Select(m => m.VIBufferView).ToArray(),
                 Surfaces = phoneModel.Submeshes.Select(m => m.Surface).ToArray(),
             });
-            world.Create(new ECS.Component.Position(0.0f, 0.3f, 0.0f), new ECS.Component.Renderable()
+            world.Create(new ECS.Component.Position(0.3f, 0.3f, 0.3f), new ECS.Component.Renderable()
             {
                 VIBufferViews = phoneModel.Submeshes.Select(m => m.VIBufferView).ToArray(),
                 Surfaces = phoneModel.Submeshes.Select(m => m.Surface).ToArray(),
             });
-            world.Create(new ECS.Component.Position(0.0f, -0.3f, 0.0f), new ECS.Component.Renderable()
+            world.Create(new ECS.Component.Position(-0.3f, -0.3f, -0.3f), new ECS.Component.Renderable()
             {
                 VIBufferViews = phoneModel.Submeshes.Select(m => m.VIBufferView).ToArray(),
                 Surfaces = phoneModel.Submeshes.Select(m => m.Surface).ToArray(),
@@ -152,6 +165,12 @@ namespace Application
             ID3D12Resource cameraBuffer = graphicsState.device.CreateCommittedResource(HeapType.Upload,
                 ResourceDescription.Buffer(1024), ResourceStates.AllShaderResource);
             graphicsState.device.CreateConstantBufferView(new ConstantBufferViewDescription(cameraBuffer, 1024),
+                heapState.cbvUavSrvDescriptorHeap.Segments[HeapConfig.Segments.cbvs].NextCpuHandle());
+
+            // This should be moved into a common heap and uploaded through upload heap
+            ID3D12Resource perFrameBuffer = graphicsState.device.CreateCommittedResource(HeapType.Upload,
+                ResourceDescription.Buffer(1024), ResourceStates.AllShaderResource);
+            graphicsState.device.CreateConstantBufferView(new ConstantBufferViewDescription(perFrameBuffer, 1024),
                 heapState.cbvUavSrvDescriptorHeap.Segments[HeapConfig.Segments.cbvs].NextCpuHandle());
 
             graphicsState.commandList.Close();
@@ -172,18 +191,16 @@ namespace Application
 
             Stopwatch uptime = Stopwatch.StartNew();
 
-            bool spinCamera = false;
+            Vector3D<float> cameraPosition = new(0.0f, 0.0f, -1.0f);
+            Vector3D<float> lightPosition = new(0.0f, 0.0f, -1.0f);
 
+            // bool spinCamera = false;
             //var center = bounds.Center;
-            var radius = 0.5f;
+            //var radius = 0.5f;
             Matrix4X4<float> viewMatrix = Matrix4X4.CreateLookAt(
-                        new Vector3D<float>(
-                            MathF.Cos((float)uptime.Elapsed.TotalSeconds) * radius,
-                            0.2f,
-                            MathF.Sin((float)uptime.Elapsed.TotalSeconds) * radius
-                        ),
-                        new Vector3D<float>(0.0f, 0.1f, 0.0f),
-                        Vector3D<float>.UnitY
+                cameraPosition,
+                new Vector3D<float>(0.0f, 0.1f, 0.0f),
+                Vector3D<float>.UnitY
             );
 
             // Reload shaders
@@ -218,7 +235,7 @@ namespace Application
             while (running)
             {
                 // Reload shaders
-                for(int i = reloadFiles.Count - 1; i >= 0; --i)
+                for (int i = reloadFiles.Count - 1; i >= 0; --i)
                 {
                     RenamedEventArgs reloadArgs = reloadFiles[i];
 
@@ -231,7 +248,7 @@ namespace Application
 
                         reloadFiles.RemoveAt(i);
                     }
-                    catch(System.IO.IOException ex)
+                    catch (System.IO.IOException ex)
                     {
                         // :( Try again
                         Console.WriteLine(ex.ToString());
@@ -253,9 +270,21 @@ namespace Application
                     }
                 }
 
+                float lightRadius = 10.0f;
+                /*lightPosition = new Vector3D<float>(
+                            MathF.Cos((float)uptime.Elapsed.TotalSeconds) * lightRadius,
+                            0.1f,
+                            MathF.Sin((float)uptime.Elapsed.TotalSeconds) * lightRadius
+                        );*/
+                lightPosition = new Vector3D<float>(MathF.Cos((float)uptime.Elapsed.TotalSeconds), 0.0f, 1.0f);
 
+                viewMatrix = Matrix4X4.CreateLookAt(
+                    cameraPosition,
+                    new Vector3D<float>(0.0f, 0.1f, 0.0f),
+                    Vector3D<float>.UnitY
+                );
 
-                if (spinCamera)
+                /*if (spinCamera)
                 {
                     viewMatrix = Matrix4X4.CreateLookAt(
                         new Vector3D<float>(
@@ -266,9 +295,9 @@ namespace Application
                         new Vector3D<float>(0.0f, 0.1f, 0.0f),
                         Vector3D<float>.UnitY
                     );
-                }
+                }*/
                 Matrix4X4<float> projMatrix = Matrix4X4.CreatePerspectiveFieldOfView(59.0f * (MathF.PI / 180.0f),
-                    settings.Window.Width / (float)settings.Window.Height, 50000.0f, 0.001f);
+                    settings.Window.Width / (float)settings.Window.Height, 500.0f, 0.001f);
                 Matrix4X4<float> viewProjMatrix = Matrix4X4.Transpose(viewMatrix * projMatrix);
                 unsafe
                 {
@@ -276,6 +305,20 @@ namespace Application
                     cameraBuffer.Map(0, (void**)&data);
                     Buffer.MemoryCopy(&viewProjMatrix, data, 1024, 4 * 4 * 4);
                     cameraBuffer.Unmap(0);
+                }
+
+                unsafe
+                {
+                    FrameData frameData = new FrameData
+                    {
+                        CameraPosition = cameraPosition,
+                        LightPosition = lightPosition,
+                    };
+
+                    byte* data;
+                    perFrameBuffer.Map(0, (void**)&data);
+                    Buffer.MemoryCopy(&frameData, data, 1024, SizeOf<FrameData>());
+                    perFrameBuffer.Unmap(0);
                 }
 
                 var commandList = graphicsState.commandList;
@@ -310,10 +353,6 @@ namespace Application
                 commandList.SetGraphicsRootSignature(graphicsState.rootSignature);
                 commandList.SetDescriptorHeaps(heapState.cbvUavSrvDescriptorHeap.ID3D12DescriptorHeap);
                 commandList.SetGraphicsRootDescriptorTable(1, heapState.cbvUavSrvDescriptorHeap.ID3D12DescriptorHeap.GetGPUDescriptorHandleForHeapStart());
-
-                imGuiRenderer.ImGui_ImplDX12_NewFrame();
-                imGuiSdlBackend.ImGui_ImplSDL2_NewFrame();
-
 
                 //Dictionary<PSO, List<InstanceData>> instanceDatas = new();
                 Dictionary<PSO, Dictionary<VIBufferView, (List<Surface>, List<InstanceData>)>> renderPsos = new();
@@ -357,24 +396,26 @@ namespace Application
                         ReadOnlySpan<InstanceData> dataSpan = CollectionsMarshal.AsSpan(instanceDatas);
                         heapState.instanceDataBuffer.SetData(dataSpan, instanceDataOffset * SizeOf<InstanceData>());
 
-                        for(int i = 0; i < surfaces.Count; ++i)
+                        unsafe
                         {
-                            unsafe
+                            byte* data;
+                            heapState.perDrawBuffer.Map(0, (void**)&data);
+
+                            for (int i = 0; i < surfaces.Count; ++i)
                             {
-                                byte* data;
-                                heapState.perDrawBuffer.Map(0, (void**)&data);
-                                data += drawOffset * 256;
+                                Debug.Assert(SizeOf<ModelData>() <= 256);
+                                ModelData modelData = new()
+                                {
+                                    AlbedoTextureId = surfaces[i].AlbedoTexture.ID,
+                                    NormalTextureId = surfaces[i].NormalTexture.ID,
+                                    OrmTextureId = surfaces[i].ORMTexture.ID,
+                                    VertexBufferId = bufferView.VertexBufferId,
+                                    InstanceStartOffset = instanceDataOffset,
+                                };
+                                Buffer.MemoryCopy(&modelData, data + drawOffset * 256, 256, SizeOf<ModelData>());
 
-                                int textureId = surfaces[i].AlbedoTexture.ID;
-                                int vertexBufferId = bufferView.VertexBufferId;
-                                int instanceDataStartOffset = instanceDataOffset;
-
-                                Buffer.MemoryCopy(&vertexBufferId, data, 4, 4);
-                                Buffer.MemoryCopy(&textureId, data + 4, 4, 4);
-                                Buffer.MemoryCopy(&instanceDataStartOffset, data + 4 + 4, 4, 4);
-
-                                heapState.perDrawBuffer.Unmap(0);
                             }
+                            heapState.perDrawBuffer.Unmap(0);
                         }
 
                         instanceDataOffset += instanceDatas.Count;
@@ -383,16 +424,54 @@ namespace Application
                         graphicsState.commandList.SetGraphicsRootConstantBufferView(0, heapState.perDrawBuffer.GPUVirtualAddress + (ulong)(drawOffset * 256));
                         graphicsState.commandList.DrawIndexedInstanced(bufferView.IndexCount, instanceDatas.Count, bufferView.IndexStart, 0, 0);
 
-                        drawOffset++;        
+                        drawOffset++;
                     }
                 }
 
                 //scene.Render(graphicsState, heapState.instanceDataBuffer, heapState.perDrawBuffer);
 
+                commandList.RSSetViewport(0.0f, 0.0f, settings.Window.Width, settings.Window.Height);
+                commandList.RSSetScissorRect(settings.Window.Width, settings.Window.Height);
+                commandList.IASetPrimitiveTopology(Vortice.Direct3D.PrimitiveTopology.TriangleList);
+                commandList.SetGraphicsRootSignature(graphicsState.rootSignature);
+                commandList.SetDescriptorHeaps(heapState.cbvUavSrvDescriptorHeap.ID3D12DescriptorHeap);
+                commandList.SetGraphicsRootDescriptorTable(1, heapState.cbvUavSrvDescriptorHeap.ID3D12DescriptorHeap.GetGPUDescriptorHandleForHeapStart());
+                graphicsState.commandList.SetPipelineState(bulbSurface.PSO.ID3D12PipelineState);
+                unsafe
+                {
+                    byte* data;
+                    heapState.perDrawBuffer.Map(0, (void**)&data);
+                    data += drawOffset * 256;
+
+                    Debug.Assert(SizeOf<ModelData>() <= 256);
+                    ModelData modelData = new()
+                    {
+                        AlbedoTextureId = bulbSurface.AlbedoTexture.ID,
+                        NormalTextureId = -1,
+                        OrmTextureId = -1,
+                        VertexBufferId = -1,
+                        InstanceStartOffset = -1
+                    };
+                    Buffer.MemoryCopy(&modelData, data, 256, SizeOf<ModelData>());
+
+                    heapState.perDrawBuffer.Unmap(0);
+                }
+                graphicsState.commandList.SetGraphicsRootConstantBufferView(0, heapState.perDrawBuffer.GPUVirtualAddress + (ulong)(drawOffset * 256));
+                graphicsState.commandList.DrawInstanced(6, 1, 0, 0);
+                drawOffset++;
+
+
+                imGuiRenderer.ImGui_ImplDX12_NewFrame();
+                imGuiSdlBackend.ImGui_ImplSDL2_NewFrame();
                 ImGui.NewFrame();
 
                 ImGui.Begin("Window");
-                ImGui.Checkbox("Spin camera", ref spinCamera);
+                unsafe
+                {
+                    ImGui.DragFloat3("Light position", ref *(Vector3*)&lightPosition);
+                    ImGui.DragFloat3("Camera position", ref *(Vector3*)&cameraPosition, 0.001f);
+                }
+                //ImGui.Checkbox("Spin camera", ref spinCamera);
                 ImGui.End();
 
 

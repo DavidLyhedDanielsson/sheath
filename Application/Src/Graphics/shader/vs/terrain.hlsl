@@ -16,7 +16,7 @@ struct InstanceData {
 };
 
 cbuffer modelData: register(b0, space0) {
-    int vertexBufferID;
+    int vertexBufferId;
     int surfaceID;
     int instanceStartOffset;
 }
@@ -27,7 +27,7 @@ StructuredBuffer<VertexIn> vertices[]: register(t0, space2);
 StructuredBuffer<InstanceData> instanceDatas: register(t0, space5);
 
 VertexOut main(uint vertexId: SV_VERTEXID) {
-    VertexIn vertexIn = vertices[vertexBufferID][vertexId];
+    VertexIn vertexIn = vertices[vertexBufferId][vertexId];
     InstanceData instanceData = instanceDatas[instanceStartOffset];
 
     float3 scale0 = (float3)instanceData.transform[0];

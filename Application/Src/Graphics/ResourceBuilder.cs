@@ -111,14 +111,14 @@ public class LinearResourceBuilder : IResourceBuilder
     {
         ID3D12Resource resource = heapState.textureHeap.AppendTexture2D(
             graphicsState.device
-            , ResourceDescription.Texture2D(Format.R8G8B8A8_UNorm, (uint)textureData.Width, (uint)textureData.Height, 1, 1)
+            , ResourceDescription.Texture2D(Utils.ChannelsToDXGIFormat(textureData.Channels), (uint)textureData.Width, (uint)textureData.Height, 1, 1)
         );
 
         int textureId = heapState.cbvUavSrvDescriptorHeap.Segments[HeapConfig.Segments.textures].Used;
         graphicsState.device.CreateShaderResourceView(resource,
             new ShaderResourceViewDescription
             {
-                Format = Format.R8G8B8A8_UNorm,
+                Format = Utils.ChannelsToDXGIFormat(textureData.Channels),
                 ViewDimension = ShaderResourceViewDimension.Texture2D,
                 Shader4ComponentMapping = ShaderComponentMapping.Default,
                 Texture2D = new Texture2DShaderResourceView
@@ -177,20 +177,7 @@ public class LinearResourceBuilder : IResourceBuilder
                 StreamOutput = null,
                 BlendState = BlendDescription.Opaque,
                 SampleMask = uint.MaxValue,
-                RasterizerState = new RasterizerDescription
-                {
-                    FillMode = FillMode.Solid,
-                    CullMode = pso.BackfaceCulling ? CullMode.Back : CullMode.None,
-                    FrontCounterClockwise = true,
-                    DepthBias = 0,
-                    DepthBiasClamp = 0,
-                    SlopeScaledDepthBias = 0,
-                    DepthClipEnable = true,
-                    MultisampleEnable = false,
-                    AntialiasedLineEnable = false,
-                    ForcedSampleCount = 0,
-                    ConservativeRaster = ConservativeRasterizationMode.Off
-                },
+                RasterizerState = pso.RasterizerDescription,
                 DepthStencilState = DepthStencilDescription.ReverseZ,
                 InputLayout = null,
                 IndexBufferStripCutValue = IndexBufferStripCutValue.Disabled,
@@ -218,6 +205,21 @@ public class LinearResourceBuilder : IResourceBuilder
         string pixelShaderPath = material.AlbedoTextureHasAlpha ? "pixel_alphamask.hlsl" : "pixel.hlsl";
         var pixelShader = Graphics.Utils.CompilePixelShader(pixelShaderPath).LogIfFailed().Value;
 
+        var rasterizerDescription = new RasterizerDescription
+        {
+            FillMode = FillMode.Solid,
+            CullMode = material.AlbedoTextureHasAlpha ? CullMode.None : CullMode.Back,
+            FrontCounterClockwise = true,
+            DepthBias = 0,
+            DepthBiasClamp = 0,
+            SlopeScaledDepthBias = 0,
+            DepthClipEnable = true,
+            MultisampleEnable = false,
+            AntialiasedLineEnable = false,
+            ForcedSampleCount = 0,
+            ConservativeRaster = ConservativeRasterizationMode.Off
+        };
+
         var pipelineState = graphicsState.device.CreateGraphicsPipelineState(new GraphicsPipelineStateDescription
         {
             RootSignature = graphicsState.rootSignature,
@@ -229,20 +231,7 @@ public class LinearResourceBuilder : IResourceBuilder
             StreamOutput = null,
             BlendState = BlendDescription.Opaque,
             SampleMask = uint.MaxValue,
-            RasterizerState = new RasterizerDescription
-            {
-                FillMode = FillMode.Solid,
-                CullMode = material.AlbedoTextureHasAlpha ? CullMode.None : CullMode.Back,
-                FrontCounterClockwise = true,
-                DepthBias = 0,
-                DepthBiasClamp = 0,
-                SlopeScaledDepthBias = 0,
-                DepthClipEnable = true,
-                MultisampleEnable = false,
-                AntialiasedLineEnable = false,
-                ForcedSampleCount = 0,
-                ConservativeRaster = ConservativeRasterizationMode.Off
-            },
+            RasterizerState = rasterizerDescription,
             DepthStencilState = DepthStencilDescription.ReverseZ,
             InputLayout = null,
             IndexBufferStripCutValue = IndexBufferStripCutValue.Disabled,
@@ -261,12 +250,19 @@ public class LinearResourceBuilder : IResourceBuilder
         textures.TryGetValue(material.AlbedoTexture, out Texture? albedoTexture);
         Debug.Assert(albedoTexture != null);
 
+        textures.TryGetValue(material.NormalTexture, out Texture? normalTexture);
+        Debug.Assert(normalTexture != null);
+
+        textures.TryGetValue(material.ORMTexture, out Texture? ormTexture);
+        Debug.Assert(ormTexture != null);
+
         PSO pso = new PSO
         {
             VertexShader = "vertex.hlsl",
             PixelShader = "pixel.hlsl",
             BackfaceCulling = !material.AlbedoTextureHasAlpha,
             ID = material.AlbedoTextureHasAlpha ? 1 : 0, // TODO :)
+            RasterizerDescription = rasterizerDescription,
             ID3D12PipelineState = pipelineState,
         };
 
@@ -277,13 +273,30 @@ public class LinearResourceBuilder : IResourceBuilder
             ID = heapState.surfaceCounter++,
             PSO = pso,
             AlbedoTexture = albedoTexture,
+            NormalTexture = normalTexture,
+            ORMTexture = ormTexture,
         };
     }
-    
-    public static Surface CreateTerrainSurface(Settings settings, GraphicsState graphicsState, HeapState heapState)
+
+    public static Surface CreateBillboardSurface(Settings settings, GraphicsState graphicsState, HeapState heapState, Texture albedoTexture)
     {
-        var vertexShader = Graphics.Utils.CompileVertexShader("terrain.hlsl").LogIfFailed().Value;
-        var pixelShader = Graphics.Utils.CompilePixelShader("terrain.hlsl").LogIfFailed().Value;
+        var vertexShader = Graphics.Utils.CompileVertexShader("billboard.hlsl").LogIfFailed().Value;
+        var pixelShader = Graphics.Utils.CompilePixelShader("billboard.hlsl").LogIfFailed().Value;
+
+        var rasterizerDescription = new RasterizerDescription
+        {
+            FillMode = FillMode.Solid,
+            CullMode = CullMode.None,
+            FrontCounterClockwise = true,
+            DepthBias = 0,
+            DepthBiasClamp = 0,
+            SlopeScaledDepthBias = 0,
+            DepthClipEnable = false,
+            MultisampleEnable = false,
+            AntialiasedLineEnable = false,
+            ForcedSampleCount = 0,
+            ConservativeRaster = ConservativeRasterizationMode.Off
+        };
 
         var pipelineState = graphicsState.device.CreateGraphicsPipelineState(new GraphicsPipelineStateDescription
         {
@@ -296,20 +309,76 @@ public class LinearResourceBuilder : IResourceBuilder
             StreamOutput = null,
             BlendState = BlendDescription.Opaque,
             SampleMask = uint.MaxValue,
-            RasterizerState = new RasterizerDescription
+            RasterizerState = rasterizerDescription,
+            DepthStencilState = DepthStencilDescription.ReverseZ,
+            InputLayout = null,
+            IndexBufferStripCutValue = IndexBufferStripCutValue.Disabled,
+            PrimitiveTopologyType = PrimitiveTopologyType.Triangle,
+            RenderTargetFormats = new Format[]
             {
-                FillMode = FillMode.Solid,
-                CullMode = CullMode.None, // TODO
-                FrontCounterClockwise = true,
-                DepthBias = 0,
-                DepthBiasClamp = 0,
-                SlopeScaledDepthBias = 0,
-                DepthClipEnable = true,
-                MultisampleEnable = false,
-                AntialiasedLineEnable = false,
-                ForcedSampleCount = 0,
-                ConservativeRaster = ConservativeRasterizationMode.Off
+                settings.Graphics.BackBufferFormat,
             },
+            DepthStencilFormat = settings.Graphics.DepthStencilFormat,
+            SampleDescription = SampleDescription.Default,
+            NodeMask = 0,
+            CachedPSO = default,
+            Flags = PipelineStateFlags.None
+        });
+
+        PSO pso = new PSO
+        {
+            VertexShader = "billboard.hlsl",
+            PixelShader = "billboard.hlsl",
+            BackfaceCulling = true,
+            ID = 2, // TODO :)
+            RasterizerDescription = rasterizerDescription,
+            ID3D12PipelineState = pipelineState,
+        };
+
+        graphicsState.livePsos.Add(pso);
+
+        return new Surface
+        {
+            ID = heapState.surfaceCounter++,
+            PSO = pso,
+            AlbedoTexture = albedoTexture,
+            NormalTexture = null,
+            ORMTexture = null,
+        };
+    }
+
+    public static Surface CreateTerrainSurface(Settings settings, GraphicsState graphicsState, HeapState heapState)
+    {
+        var vertexShader = Graphics.Utils.CompileVertexShader("terrain.hlsl").LogIfFailed().Value;
+        var pixelShader = Graphics.Utils.CompilePixelShader("terrain.hlsl").LogIfFailed().Value;
+
+        RasterizerDescription rasterizerDecsription = new RasterizerDescription
+        {
+            FillMode = FillMode.Solid,
+            CullMode = CullMode.None, // TODO
+            FrontCounterClockwise = true,
+            DepthBias = 0,
+            DepthBiasClamp = 0,
+            SlopeScaledDepthBias = 0,
+            DepthClipEnable = true,
+            MultisampleEnable = false,
+            AntialiasedLineEnable = false,
+            ForcedSampleCount = 0,
+            ConservativeRaster = ConservativeRasterizationMode.Off
+        };
+
+        var pipelineState = graphicsState.device.CreateGraphicsPipelineState(new GraphicsPipelineStateDescription
+        {
+            RootSignature = graphicsState.rootSignature,
+            VertexShader = vertexShader.GetObjectBytecodeMemory(),
+            PixelShader = pixelShader.GetObjectBytecodeMemory(),
+            DomainShader = null,
+            HullShader = null,
+            GeometryShader = null,
+            StreamOutput = null,
+            BlendState = BlendDescription.Opaque,
+            SampleMask = uint.MaxValue,
+            RasterizerState = rasterizerDecsription,
             DepthStencilState = DepthStencilDescription.ReverseZ,
             InputLayout = null,
             IndexBufferStripCutValue = IndexBufferStripCutValue.Disabled,
@@ -334,12 +403,12 @@ public class LinearResourceBuilder : IResourceBuilder
                 PixelShader = "terrain.hlsl",
                 BackfaceCulling = false,
                 ID = 2, // TODO :)
+                RasterizerDescription = rasterizerDecsription,
                 ID3D12PipelineState = pipelineState,
             },
-            AlbedoTexture = new Texture
-            {
-                ID = -1
-            },
+            AlbedoTexture = new Texture { ID = -1, },
+            NormalTexture = new Texture { ID = -1, },
+            ORMTexture = new Texture { ID = -1, },
         };
     }
 

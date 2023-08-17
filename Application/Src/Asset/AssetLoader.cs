@@ -1,16 +1,17 @@
 using FluentResults;
 using StbiSharp;
+using Assimp = Silk.NET.Assimp;
+using System.Diagnostics;
+using Silk.NET.Maths;
+using Silk.NET.Assimp;
+using File = System.IO.File;
+using System.Numerics;
 
 namespace Application.Asset;
 
-using System.Diagnostics;
-
-//using Assimp;
-using Silk.NET.Maths;
-
-public static class AssimpExtensions
+/*public static class AssimpExtensions
 {
-    public static Vector2D<float> ToVector2(this Assimp.Vector2D vec)
+    public static Vector2D<float> ToVector2(this Vector2D vec)
     {
         return new Vector2D<float> { X = vec.X, Y = vec.Y };
     }
@@ -22,7 +23,7 @@ public static class AssimpExtensions
     {
         return new Vector3D<float> { X = vec.X, Y = vec.Y, Z = vec.Z };
     }
-}
+}*/
 
 public class AssetLoader
 {
@@ -32,12 +33,12 @@ public class AssetLoader
         public string[] SubmeshMaterials { get; init; }
     }
 
-    private static MeshWithMaterial CreateMesh(List<Assimp.Mesh> meshes, List<Assimp.Material> materials)
+    private static unsafe MeshWithMaterial CreateMesh(Assimp.Assimp assimp, List<Assimp.Mesh> meshes, Assimp.Material** materials)
     {
         var submeshMaterials = new string[meshes.Count];
         var submeshes = new Submesh[meshes.Count];
 
-        var vertexCount = meshes.Sum(mesh => mesh.VertexCount);
+        var vertexCount = meshes.Sum(mesh => mesh.MNumVertices);
         var vertices = new Vertex[vertexCount];
 
         // All submesh vertices and indices will be placed in a single array respectively
@@ -47,34 +48,50 @@ public class AssetLoader
         for (int meshI = 0; meshI < meshes.Count; ++meshI)
         {
             var mesh = meshes[meshI];
-            for (int i = 0; i < mesh.VertexCount; ++i, ++vertexOffset)
+            for (int i = 0; i < mesh.MNumVertices; ++i, ++vertexOffset)
             {
-                vertices[vertexOffset] = new Vertex()
+                unsafe
                 {
-                    Position = mesh.Vertices[i].ToVector3(),
-                    Normal = mesh.Normals[i].ToVector3(),
-                    Tangent = mesh.Tangents[i].ToVector3(),
-                    TextureCoordinates = mesh.TextureCoordinateChannels[0][i].ToVector2(),
-                };
+                    vertices[vertexOffset] = new Vertex()
+                    {
+                        Position = mesh.MVertices[i].ToGeneric(),
+                        Normal = mesh.MNormals[i].ToGeneric(),
+                        Tangent = mesh.MTangents[i].ToGeneric(),
+                        TextureCoordinates = new(mesh.MTextureCoords[0][i].X, mesh.MTextureCoords[0][i].Y),
+                    };
+                }
             }
 
-            uint[] indices = mesh.GetUnsignedIndices();
-            for (var i = 0; i < indices.Length; i++)
-                indices[i] += indexOffset;
-            indexOffset += (uint)mesh.VertexCount;
+            uint[] indices = new uint[mesh.MNumFaces * 3];
+            for (int i = 0, counter = 0; i < mesh.MNumFaces; i++)
+            {
+                unsafe
+                {
+                    Debug.Assert(mesh.MFaces[i].MNumIndices == 3);
+                    indices[counter++] = mesh.MFaces[i].MIndices[0] + indexOffset;
+                    indices[counter++] = mesh.MFaces[i].MIndices[1] + indexOffset;
+                    indices[counter++] = mesh.MFaces[i].MIndices[2] + indexOffset;
+                }
+            }
+            indexOffset += (uint)mesh.MNumFaces * 3;
 
             submeshes[meshI] = new Submesh()
             {
                 Indices = indices,
             };
-            submeshMaterials[meshI] = materials[mesh.MaterialIndex].Name;
+            unsafe
+            {
+                AssimpString materialName;
+                assimp.GetMaterialString(materials[mesh.MMaterialIndex], Assimp.Assimp.MaterialNameBase, 0, 0, &materialName);
+                submeshMaterials[meshI] = materialName.AsString;
+            }
         }
 
         return new MeshWithMaterial()
         {
             Mesh = new VertexData()
             {
-                Name = meshes[0].Name.Split('-')[0],
+                Name = meshes[0].MName.AsString.Split('-')[0],
                 Vertices = vertices,
                 Submeshes = submeshes,
             },
@@ -82,31 +99,59 @@ public class AssetLoader
         };
     }
 
-    private static Material CreateMaterial(AssetCatalogue assetCatalogue, Assimp.Material material)
+    private static unsafe Material CreateMaterial(Assimp.Assimp assimp, AssetCatalogue assetCatalogue, ref Assimp.Material material)
     {
-        TextureData? diffuseTexture = assetCatalogue.GetTextureData(material.TextureDiffuse.FilePath);
-
+        TextureData? diffuseTexture;
+        {
+            AssimpString aiTexturePath;
+            assimp.GetMaterialTexture(material, Assimp.TextureType.BaseColor, 0, &aiTexturePath, null, null, null, null, null, null);
+            diffuseTexture = assetCatalogue.GetTextureData(aiTexturePath.AsString);
+        }
         if (diffuseTexture == null)
             throw new NotImplementedException("Nooooooo not yet :(");
 
+        TextureData? normalTexture;
+        {
+            AssimpString aiTexturePath;
+            assimp.GetMaterialTexture(material, Assimp.TextureType.Normals, 0, &aiTexturePath, null, null, null, null, null, null);
+            normalTexture = assetCatalogue.GetTextureData(aiTexturePath.AsString);
+        }
+        if (normalTexture == null)
+            throw new NotImplementedException("Nooooooo not yet :(");
+
+        TextureData? ormTexture;
+        {
+            AssimpString aiTexturePath;
+            assimp.GetMaterialTexture(material, Assimp.TextureType.DiffuseRoughness, 0, &aiTexturePath, null, null, null, null, null, null);
+            ormTexture = assetCatalogue.GetTextureData(aiTexturePath.AsString);
+        }
+        if (ormTexture == null)
+            throw new NotImplementedException("Nooooooo not yet :(");
 
         bool hasAlpha = false;
 
-        Assimp.MaterialProperty? gltfAlphaMode = material.GetProperty("$mat.gltf.alphaMode,0,0");
-        if (gltfAlphaMode != null && gltfAlphaMode.GetStringValue() == "MASK")
+
+        Assimp.AssimpString gltfAlphaMode;
+        assimp.GetMaterialString(material, "$mat.gltf.alphaMode", 0, 0, &gltfAlphaMode);
+        if (gltfAlphaMode == "MASK")
         {
             hasAlpha = true;
         }
 
+        Assimp.AssimpString materialName;
+        assimp.GetMaterialString(material, Assimp.Assimp.MaterialNameBase, 0, 0, &materialName);
+
         return new Material()
         {
-            Name = material.Name,
+            Name = materialName.AsString,
             AlbedoTexture = diffuseTexture.FilePath,
             AlbedoTextureHasAlpha = hasAlpha,
+            NormalTexture = normalTexture.FilePath,
+            ORMTexture = ormTexture.FilePath,
         };
     }
 
-    private static Result<TextureData> CreateTexture(string rootPath, string texturePath)
+    public static Result<TextureData> CreateTexture(string rootPath, string texturePath)
     {
         using (var file = File.OpenRead(Path.Combine(rootPath, texturePath)))
         using (var stream = new MemoryStream())
@@ -123,6 +168,7 @@ public class AssetLoader
                     Texels = image.Data.ToArray(),
                     Width = image.Width,
                     Height = image.Height,
+                    Channels = 4,
                 });
             }
             catch (ArgumentException ex)
@@ -132,62 +178,170 @@ public class AssetLoader
         }
     }
 
+    [Flags]
+    private enum Channel
+    {
+        R = 1 << 0,
+        G = 1 << 1,
+        B = 1 << 2,
+        A = 1 << 3,
+        All = R | G | B | A,
+    };
+
+    private static Result<TextureData> CreateTexture(string rootPath, string texturePath, Channel channelsToExtract)
+    {
+        using (var file = File.OpenRead(Path.Combine(rootPath, texturePath)))
+        using (var stream = new MemoryStream())
+        {
+            try
+            {
+                file.CopyTo(stream);
+                Stbi.InfoFromMemory(stream, out int width, out int height, out int channelCount);
+                StbiImage image = Stbi.LoadFromMemory(stream, channelCount);
+
+                int numberOfChannelsToExtract = BitOperations.PopCount((uint)channelsToExtract);
+
+                Debug.Assert(channelCount >= numberOfChannelsToExtract);
+
+                var extractMask = new byte[]
+                {
+                    Convert.ToByte((channelsToExtract & Channel.R) != 0),
+                    Convert.ToByte((channelsToExtract & Channel.G) != 0),
+                    Convert.ToByte((channelsToExtract & Channel.B) != 0),
+                    Convert.ToByte((channelsToExtract & Channel.A) != 0),
+                };
+
+                var texels = new byte[width * height * numberOfChannelsToExtract];
+                for(int i = 0; i < width * height; ++i)
+                {
+                    for(int texelI = 0, channelI = 0; texelI < numberOfChannelsToExtract && channelI < channelCount; texelI += extractMask[channelI], ++channelI)
+                        texels[i * numberOfChannelsToExtract + texelI] = (byte)(extractMask[channelI] * image.Data[i * channelCount + channelI]);
+                }
+
+                return Result.Ok(new TextureData()
+                {
+                    FilePath = texturePath,
+                    Texels = texels,
+                    Width = image.Width,
+                    Height = image.Height,
+                    Channels = numberOfChannelsToExtract,
+                });
+            }
+            catch (ArgumentException ex)
+            {
+                return Result.Fail(ex.Message);
+            }
+        }
+    }
+
+    private unsafe delegate void AssimpEach<T>(ref T arg) where T : unmanaged;
+    private static unsafe void AssimpForEach<T>(uint count, T** type, AssimpEach<T> action) where T: unmanaged
+    {
+        for (int i = 0; i < count; ++i)
+            action(ref *type[i]);
+    }
+
     public static void Import(AssetCatalogue catalogue, string file)
     {
-        var importer = new Assimp.AssimpContext();
-        var scene = importer.ImportFile(file, Assimp.PostProcessPreset.TargetRealTimeQuality);
-
-        foreach (var material in scene.Materials)
+        unsafe
         {
-            if (!catalogue.HasTexture(material.TextureDiffuse.FilePath))
-            {
-                Result<TextureData> texture = CreateTexture(Path.GetDirectoryName(file) ?? string.Empty, material.TextureDiffuse.FilePath);
+            Assimp.Assimp assimp = Assimp.Assimp.GetApi();
+            Assimp.Scene* scene;
 
-                if (texture.IsSuccess)
-                    catalogue.AddTexture(texture.Value);
+            scene = assimp.ImportFile(file, (uint)Assimp.PostProcessPreset.TargetRealTimeQuality);
+
+            //var importer = new Assimp.AssimpContext();
+            //var scene = importer.ImportFile(file, Assimp.PostProcessPreset.TargetRealTimeQuality);
+
+
+            AssimpForEach(scene->MNumMaterials, scene->MMaterials, (ref Assimp.Material material) =>
+            {
+                var expectedTextures = new[]
+                {
+                    Assimp.TextureType.BaseColor,
+                    Assimp.TextureType.Normals,
+                    Assimp.TextureType.Metalness,
+                    Assimp.TextureType.DiffuseRoughness,
+                    Assimp.TextureType.Lightmap,
+                };
+
+                foreach(var type in expectedTextures)
+                {
+                    Debug.Assert(assimp.GetMaterialTextureCount(material, type) == 1);
+                }
+
+                foreach (var type in expectedTextures)
+                {
+                    string texturePath;
+
+                    {
+                        AssimpString aiTexturePath;
+                        assimp.GetMaterialTexture(material, type, 0, &aiTexturePath, null, null, null, null, null, null);
+                        texturePath = aiTexturePath.AsString;
+                    }
+
+                    if (!catalogue.HasTexture(texturePath))
+                    {
+                        Result<TextureData> texture = CreateTexture(Path.GetDirectoryName(file) ?? string.Empty, texturePath);
+
+                        if (texture.IsSuccess)
+                            catalogue.AddTexture(texture.Value);
+                        else
+                        {
+                            Console.Error.Write("Couldn't load file at ");
+                            Console.Error.WriteLine(file);
+                        }
+                    }
+                }
+            });
+
+            AssimpForEach(scene->MNumMaterials, scene->MMaterials, (ref Assimp.Material material) => catalogue.AddMaterial(CreateMaterial(assimp, catalogue, ref material)));
+
+
+            // TODO: Submeshes
+            AssimpForEach(scene->MNumMeshes, scene->MMeshes, (ref Assimp.Mesh mesh) =>
+            {
+                var meshes = new List<Assimp.Mesh>();
+                meshes.Add(mesh);
+
+                MeshWithMaterial meshWithMaterial = CreateMesh(assimp, meshes, scene->MMaterials);
+                catalogue.AddVertexData(meshWithMaterial.Mesh);
+                catalogue.AddDefaultMaterial(meshWithMaterial.Mesh.Name, meshWithMaterial.SubmeshMaterials);
+            });
+
+            // Meshes with submeshes are named Mesh-0/Mesh-1/Mesh-2. Group them
+            // together before calling `Addmesh`.
+            /*scene.Meshes.Sort((lhs, rhs) => string.Compare(lhs.Name, rhs.Name, StringComparison.Ordinal));
+
+            List<Assimp.Mesh> meshes = new(10);
+            foreach (Assimp.Mesh mesh in scene.Meshes)
+            {
+                if (meshes.Count == 0)
+                    meshes.Add(mesh);
                 else
                 {
-                    Console.Error.Write("Couldn't load file at ");
-                    Console.Error.WriteLine(file);
+                    string currentName = meshes[0].Name.Split('-')[0];
+                    string meshName = mesh.Name.Split('-')[0];
+
+                    if (currentName != meshName)
+                    {
+                        MeshWithMaterial meshWithMaterial = CreateMesh(meshes, scene.Materials);
+                        catalogue.AddVertexData(meshWithMaterial.Mesh);
+                        catalogue.AddDefaultMaterial(meshWithMaterial.Mesh.Name, meshWithMaterial.SubmeshMaterials);
+                        meshes.Clear();
+                    }
+
+                    meshes.Add(mesh);
                 }
             }
-        }
 
-        foreach (var material in scene.Materials)
-            catalogue.AddMaterial(CreateMaterial(catalogue, material));
-
-        // Meshes with submeshes are named Mesh-0/Mesh-1/Mesh-2. Group them
-        // together before calling `Addmesh`.
-        scene.Meshes.Sort((lhs, rhs) => string.Compare(lhs.Name, rhs.Name, StringComparison.Ordinal));
-
-        List<Assimp.Mesh> meshes = new(10);
-        foreach (Assimp.Mesh mesh in scene.Meshes)
-        {
-            if (meshes.Count == 0)
-                meshes.Add(mesh);
-            else
+            if (meshes.Count > 0)
             {
-                string currentName = meshes[0].Name.Split('-')[0];
-                string meshName = mesh.Name.Split('-')[0];
-
-                if (currentName != meshName)
-                {
-                    MeshWithMaterial meshWithMaterial = CreateMesh(meshes, scene.Materials);
-                    catalogue.AddVertexData(meshWithMaterial.Mesh);
-                    catalogue.AddDefaultMaterial(meshWithMaterial.Mesh.Name, meshWithMaterial.SubmeshMaterials);
-                    meshes.Clear();
-                }
-
-                meshes.Add(mesh);
-            }
-        }
-
-        if (meshes.Count > 0)
-        {
-            MeshWithMaterial meshWithMaterial = CreateMesh(meshes, scene.Materials);
-            catalogue.AddVertexData(meshWithMaterial.Mesh);
-            catalogue.AddDefaultMaterial(meshWithMaterial.Mesh.Name, meshWithMaterial.SubmeshMaterials);
-            meshes.Clear();
+                MeshWithMaterial meshWithMaterial = CreateMesh(meshes, scene.Materials);
+                catalogue.AddVertexData(meshWithMaterial.Mesh);
+                catalogue.AddDefaultMaterial(meshWithMaterial.Mesh.Name, meshWithMaterial.SubmeshMaterials);
+                meshes.Clear();
+            }*/
         }
     }
 
