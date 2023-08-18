@@ -12,8 +12,9 @@ struct VertexIn
 struct VertexOut
 {
     float4 svPosition : SV_POSITION;
+    float3 normal : NORMAL;
     float2 texCoords : TEX_COORDS;
-    float3 lightDirT : LIGHT_DIR;
+    float4 lightDirT : LIGHT_DIR;
     float3 cameraDirT : CAMERA_DIR;
 };
 
@@ -80,16 +81,16 @@ VertexOut main(uint vertexId: SV_VERTEXID, uint instanceId: SV_InstanceID) {
 
     // Position
     float4 worldPosition = mul(instanceData.transform, float4(vertexIn.position * 2.0f, 1.0f)); // TODO: Should be vec * mat
+    float3 lightDirT = mul(normalize(frameData.lightPosition.xyz - worldPosition.xyz), tbnTangent);
+    float lightDistance = length(frameData.lightPosition.xyz - worldPosition.xyz);
 
 
     //// Write
     VertexOut vertexOut;
     vertexOut.svPosition = mul(worldPosition, vpMatrix);
-    //vertexOut.normal = mul(vertexIn.normal, normalMatrix);
-    //vertexOut.tangent = mul(vertexIn.tangent, normalMatrix);
+    vertexOut.normal = mul(vertexIn.normal, normalMatrix);
     vertexOut.texCoords = vertexIn.texCoords;
-    vertexOut.lightDirT = mul(normalize(frameData.lightPosition.xyz - worldPosition.xyz), tbnTangent);
+    vertexOut.lightDirT = float4(lightDirT, lightDistance);
     vertexOut.cameraDirT = mul(normalize(frameData.cameraPosition.xyz - worldPosition.xyz), tbnTangent);
-    //vertexOut.pixelPos = mul(worldPosition.xyz, tbnTangent);
     return vertexOut;
 }

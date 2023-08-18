@@ -2,7 +2,7 @@
   "profiles": {
     "Application": {
       "commandName": "Project",
-      "nativeDebugging": true
+      "nativeDebugging": false
     }
   }
 }

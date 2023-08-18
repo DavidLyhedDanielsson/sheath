@@ -1,9 +1,6 @@
 using Vortice.DXGI;
-using YamlDotNet.Core;
 using YamlDotNet.Serialization;
 using YamlDotNet.Serialization.NamingConventions;
-using YamlDotNet.Serialization.NodeDeserializers;
-using Silk.NET.Maths;
 
 namespace Application;
 
@@ -85,7 +82,7 @@ public class Settings
         public Vector3D<float> CameraPosition;
         public Vector3D<float> CameraForward;
 
-        public static Vector3D<float> DefaultCameraPosition = Vector3D<float>.Zero;
+        public static Vector3D<float> DefaultCameraPosition = new Vector3D<float>(0.0f, 0.0f, 1.0f);
         public static Vector3D<float> DefaultCameraForward = new Vector3D<float>(0.0f, 0.0f, 1.0f);
 
         public static StateS CreateDefault()
@@ -98,7 +95,7 @@ public class Settings
         }
         public void ValidateAndCorrect() { }
     }
-    StateS State;
+    public StateS State { get; set; } 
 
     public Settings()
     {
@@ -125,6 +122,7 @@ public class Settings
 
         var settings = new DeserializerBuilder()
             .WithNamingConvention(CamelCaseNamingConvention.Instance)
+            .IgnoreUnmatchedProperties() // Quick fix for Vector3D length and lengthSquared
             .Build()
             .Deserialize<Settings>(yaml);
 

@@ -148,12 +148,12 @@ namespace Application
                 VIBufferViews = phoneModel.Submeshes.Select(m => m.VIBufferView).ToArray(),
                 Surfaces = phoneModel.Submeshes.Select(m => m.Surface).ToArray(),
             });
-            world.Create(new ECS.Component.Position(0.3f, 0.3f, 0.3f), new ECS.Component.Renderable()
+            world.Create(new ECS.Component.Position(0.3f, 0.3f, 5.0f), new ECS.Component.Renderable()
             {
                 VIBufferViews = phoneModel.Submeshes.Select(m => m.VIBufferView).ToArray(),
                 Surfaces = phoneModel.Submeshes.Select(m => m.Surface).ToArray(),
             });
-            world.Create(new ECS.Component.Position(-0.3f, -0.3f, -0.3f), new ECS.Component.Renderable()
+            world.Create(new ECS.Component.Position(-0.3f, -0.3f, -5.0f), new ECS.Component.Renderable()
             {
                 VIBufferViews = phoneModel.Submeshes.Select(m => m.VIBufferView).ToArray(),
                 Surfaces = phoneModel.Submeshes.Select(m => m.Surface).ToArray(),
@@ -191,7 +191,7 @@ namespace Application
 
             Stopwatch uptime = Stopwatch.StartNew();
 
-            Vector3D<float> cameraPosition = new(0.0f, 0.0f, -1.0f);
+            Vector3D<float> cameraPosition = settings.State.CameraPosition;
             Vector3D<float> lightPosition = new(0.0f, 0.0f, -1.0f);
 
             // bool spinCamera = false;
@@ -271,12 +271,12 @@ namespace Application
                 }
 
                 float lightRadius = 10.0f;
-                /*lightPosition = new Vector3D<float>(
-                            MathF.Cos((float)uptime.Elapsed.TotalSeconds) * lightRadius,
-                            0.1f,
-                            MathF.Sin((float)uptime.Elapsed.TotalSeconds) * lightRadius
-                        );*/
-                lightPosition = new Vector3D<float>(MathF.Cos((float)uptime.Elapsed.TotalSeconds), 0.0f, 1.0f);
+                //lightPosition = new Vector3D<float>(MathF.Cos((float)uptime.Elapsed.TotalSeconds), 0.0f, 1.0f);
+                lightPosition = new Vector3D<float>(
+                    MathF.Cos((float)uptime.Elapsed.TotalSeconds * 0.5f),
+                    MathF.Sin((float)uptime.Elapsed.TotalSeconds * 0.5f),
+                    MathF.Sin((float)uptime.Elapsed.TotalSeconds * 0.33f) * 5.0f + 1.0f
+                );
 
                 viewMatrix = Matrix4X4.CreateLookAt(
                     cameraPosition,
@@ -497,6 +497,7 @@ namespace Application
                 SDL_GetWindowSize(sdlWindow, out int sizeX, out int sizeY);
                 settings.Window.Width = sizeX;
                 settings.Window.Height = sizeY;
+                settings.State.CameraPosition = cameraPosition;
                 settings.Save();
             }
 
