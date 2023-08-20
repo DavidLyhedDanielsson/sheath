@@ -111,6 +111,11 @@ namespace Application
                 Surface surface = LinearResourceBuilder.CreateSurface(settings, graphicsState, heapState, material, textureNames);
                 surfaceNames.Add(material.Name, surface);
             });
+            assetCatalogue.ForEachMaterial(material =>
+            {
+                Surface blinnPhongSurface = LinearResourceBuilder.CreateBlinnPhongSurface(settings, graphicsState, heapState, material, textureNames);
+                surfaceNames.Add(material.Name + "_blinnphong", blinnPhongSurface);
+            });
 
             assetCatalogue.ForEachVertexData(vertexData =>
             {
@@ -140,23 +145,36 @@ namespace Application
                 showroom.AddShowcase(vertexDataId, model);
             });
 
+            assetCatalogue.ForEachDefaultMaterial((string vertexDataId, string[] materials) =>
+            {
+                Surface[] surfaces = new Surface[materials.Length];
+                for (int i = 0; i < materials.Length; ++i)
+                {
+                    surfaceNames.TryGetValue(materials[i] + "_blinnphong", out surfaces[i]);
+                    Debug.Assert(surfaces[i] != null);
+                }
+
+                meshNames.TryGetValue(vertexDataId, out Mesh? mesh);
+                Debug.Assert(mesh != null);
+
+                Model model = ModelBuilder.CreateModel(mesh, surfaces);
+
+                showroom.AddShowcase(vertexDataId + "_blinnphong", model);
+            });
+
             World world = World.Create();
 
             Model phoneModel = showroom.GetShowcase("SM_Phone_01a").Model;
-            world.Create(new ECS.Component.Position(0.0f, 0.0f, 0.0f), new ECS.Component.Renderable()
+            world.Create(new ECS.Component.Position(-0.2f, 0.0f, 0.0f), new ECS.Component.Renderable()
             {
                 VIBufferViews = phoneModel.Submeshes.Select(m => m.VIBufferView).ToArray(),
                 Surfaces = phoneModel.Submeshes.Select(m => m.Surface).ToArray(),
             });
-            world.Create(new ECS.Component.Position(0.3f, 0.3f, 5.0f), new ECS.Component.Renderable()
+            Model phoneModelBlinnPhong = showroom.GetShowcase("SM_Phone_01a_blinnphong").Model;
+            world.Create(new ECS.Component.Position(0.2f, 0.0f, 0.0f), new ECS.Component.Renderable()
             {
-                VIBufferViews = phoneModel.Submeshes.Select(m => m.VIBufferView).ToArray(),
-                Surfaces = phoneModel.Submeshes.Select(m => m.Surface).ToArray(),
-            });
-            world.Create(new ECS.Component.Position(-0.3f, -0.3f, -5.0f), new ECS.Component.Renderable()
-            {
-                VIBufferViews = phoneModel.Submeshes.Select(m => m.VIBufferView).ToArray(),
-                Surfaces = phoneModel.Submeshes.Select(m => m.Surface).ToArray(),
+                VIBufferViews = phoneModelBlinnPhong.Submeshes.Select(m => m.VIBufferView).ToArray(),
+                Surfaces = phoneModelBlinnPhong.Submeshes.Select(m => m.Surface).ToArray(),
             });
 
             //scene.AddInstance(.Model, new InstanceData { transform = Matrix4X4<float>.Identity });
@@ -231,6 +249,9 @@ namespace Application
             };
             psWatcher.EnableRaisingEvents = true;
 
+            Camera camera = new();
+            bool dragging = false;
+
             var running = true;
             while (running)
             {
@@ -267,22 +288,46 @@ namespace Application
                             if (ev.key.keysym.scancode == SDL_Scancode.SDL_SCANCODE_ESCAPE)
                                 running = false;
                             break;
+                        case SDL_EventType.SDL_MOUSEBUTTONUP:
+                            if (ev.button.button == SDL_BUTTON_LEFT)
+                                dragging = false;
+                            break;
+                        case SDL_EventType.SDL_MOUSEBUTTONDOWN:
+                            if (ev.button.button == SDL_BUTTON_LEFT)
+                                dragging = true;
+                            break;
+                        case SDL_EventType.SDL_MOUSEWHEEL:
+                            camera._targetViewDistance += ev.wheel.y * -0.01f;
+                            break;
+                        case SDL_EventType.SDL_MOUSEMOTION:
+                            if(dragging)
+                            {
+                                camera.Pitch(ev.motion.yrel * -0.001f);
+                                camera.Yaw(ev.motion.xrel * -0.001f);
+                            }
+                            break;
                     }
                 }
 
                 float lightRadius = 10.0f;
                 //lightPosition = new Vector3D<float>(MathF.Cos((float)uptime.Elapsed.TotalSeconds), 0.0f, 1.0f);
-                lightPosition = new Vector3D<float>(
+                /*lightPosition = new Vector3D<float>(
                     MathF.Cos((float)uptime.Elapsed.TotalSeconds * 0.5f),
                     MathF.Sin((float)uptime.Elapsed.TotalSeconds * 0.5f),
                     MathF.Sin((float)uptime.Elapsed.TotalSeconds * 0.33f) * 5.0f + 1.0f
+                );*/
+                lightPosition = new Vector3D<float>(
+                    MathF.Cos((float)uptime.Elapsed.TotalSeconds * 0.45f) * 0.5f,
+                    MathF.Sin((float)uptime.Elapsed.TotalSeconds * 0.25f) * 0.5f,
+                    MathF.Sin((float)uptime.Elapsed.TotalSeconds * 0.35f) * 0.5f
                 );
 
-                viewMatrix = Matrix4X4.CreateLookAt(
-                    cameraPosition,
-                    new Vector3D<float>(0.0f, 0.1f, 0.0f),
-                    Vector3D<float>.UnitY
-                );
+                Vector3D<float> viewPosition = new(0.0f, 0.0f, camera._viewDistance);
+                viewPosition = Vector3D.Transform(viewPosition, camera._rotation);
+
+                camera.Update(0.1666f);
+
+                viewMatrix = Matrix4X4.CreateLookAt(viewPosition, Vector3D<float>.Zero, new Vector3D<float>(0.0f, 1.0f, 0.0f));
 
                 /*if (spinCamera)
                 {
@@ -376,7 +421,7 @@ namespace Application
                         surfaces.Add(surface);
                         instanceDatas.Add(new InstanceData
                         {
-                            transform = Matrix4X4.CreateTranslation(position.X, position.Y, position.Z)
+                            transform = Matrix4X4.Transpose(Matrix4X4.CreateTranslation(position.X, position.Y, position.Z))
                         });
                     }
                 });

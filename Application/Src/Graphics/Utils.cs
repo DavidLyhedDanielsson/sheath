@@ -160,6 +160,7 @@ public static class Utils
             DxcCompiler.GetShaderProfile(shaderStage, DxcShaderModel.Model6_0),
             "-Zi",
             "-Od",
+            "-WX",
             "-Qembed_debug",
         };
 

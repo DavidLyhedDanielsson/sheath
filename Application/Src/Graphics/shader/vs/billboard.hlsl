@@ -31,7 +31,7 @@ const static float2 texCoords[4] = {
 };
 
 const static float3 up = float3(0.0f, 1.0f, 0.0f);
-const static float2 scale = float2(0.25f, 0.25f);
+const static float2 scale = float2(0.025f, 0.025f);
 
 VertexOut main(uint vertexId: SV_VERTEXID, uint instanceId: SV_InstanceID) {
     const uint vertexIndex = (vertexId - (vertexId >= 3)) % 4;

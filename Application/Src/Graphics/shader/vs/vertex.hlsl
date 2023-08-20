@@ -74,13 +74,14 @@ VertexOut main(uint vertexId: SV_VERTEXID, uint instanceId: SV_InstanceID) {
     //// Calculate
     // Normal
     const float3x3 normalMatrix = CreateNormalMatrix(modelMatrix);
+    //const float3x3 normalMatrix = float3x3(1.0f, 0.0f, 0.0f, 0.0f, 1.0f, 0.0f, 0.0f, 0.0f, 1.0f);
     const float3 normalW = mul(vertexIn.normal, normalMatrix);
     const float3 tangentW = mul(vertexIn.tangent, normalMatrix);
 
     const float3x3 tbnTangent = transpose(CreateTBNMatrix(normalW, tangentW));
 
     // Position
-    float4 worldPosition = mul(instanceData.transform, float4(vertexIn.position * 2.0f, 1.0f)); // TODO: Should be vec * mat
+    float4 worldPosition = mul(float4(vertexIn.position, 1.0f), instanceData.transform); // TODO: Should be vec * mat
     float3 lightDirT = mul(normalize(frameData.lightPosition.xyz - worldPosition.xyz), tbnTangent);
     float lightDistance = length(frameData.lightPosition.xyz - worldPosition.xyz);
 
@@ -88,7 +89,7 @@ VertexOut main(uint vertexId: SV_VERTEXID, uint instanceId: SV_InstanceID) {
     //// Write
     VertexOut vertexOut;
     vertexOut.svPosition = mul(worldPosition, vpMatrix);
-    vertexOut.normal = mul(vertexIn.normal, normalMatrix);
+    vertexOut.normal = mul(vertexIn.normal, tbnTangent);
     vertexOut.texCoords = vertexIn.texCoords;
     vertexOut.lightDirT = float4(lightDirT, lightDistance);
     vertexOut.cameraDirT = mul(normalize(frameData.cameraPosition.xyz - worldPosition.xyz), tbnTangent);

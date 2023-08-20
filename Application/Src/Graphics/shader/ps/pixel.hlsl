@@ -22,8 +22,8 @@ struct Vertex
     float3 cameraDirT : CAMERA_DIR;
 };
 
-const static float3 LIGHT_COLOUR = float3(23.47f, 21.31f, 20.79f);
-const static float3 SURFACE_REFLECTANCE = float3(0.04f, 0.04f, 0.04f);
+const static float3 LIGHT_COLOUR = float3(23.47f, 21.31f, 20.79f) * 0.07f;
+const static float3 BASE_REFLECTANCE = float3(0.04f, 0.04f, 0.04f);
 
 const static float PI = 3.141592653589793f;
 const static float epsilon = 0.000000001f;
@@ -130,28 +130,25 @@ float4 main(Vertex vertex) : SV_TARGET {
     const float lightDistance = vertex.lightDirT.w;
     const float3 halfwayVector = normalize(HalfwayVector(lightDir, cameraDir));
 
-    float attenuation = 1.0f / lightDistance;
+    const float attenuation = 1.0f / pow2(lightDistance);
     const float3 radiance = LIGHT_COLOUR * attenuation;
     
     // TODO: reorder parameterss
     const float normalDistribution = TrowbridgeReitz(roughness, normal, halfwayVector);
-    const float3 fresnel = Fresnel(float3Rep(0.04f), albedo, metalness, halfwayVector, cameraDir);
+    const float3 fresnel = Fresnel(BASE_REFLECTANCE, albedo, metalness, halfwayVector, cameraDir);
     const float geometry = SmithGGX(normal, lightDir, cameraDir, roughness);
     
     const float3 specular = (normalDistribution * fresnel * geometry) / (4.0 * dotP(normal, cameraDir) * dotP(normal, lightDir) + epsilon);
     
-    const float specularTerm = fresnel;
-    const float diffuseTerm = (float3Rep(1.0f) - specularTerm) * metalness;
+    const float3 specularTerm = fresnel;
+    const float3 diffuseTerm = (float3Rep(1.0f) - specularTerm) * (1.0f - metalness);
     
     const float3 outgoingRadiance = (diffuseTerm * albedo / PI + specular) * radiance * dotP(normal, lightDir);
-    const float3 ambient = float3Rep(0.03f) * albedo * ambientOcclusion;
+    const float3 ambient = float3Rep(0.05f) * albedo * ambientOcclusion;
     
     float3 colour = ambient + outgoingRadiance;
     colour /= (colour + float3Rep(1.0f));
     colour = pow(colour, float3Rep(1.0f / 2.2f));
-
-    //float4 colour = float4(ambient + outgoingRadiance, 1.0f);
-    //float4 colour = float4(radiance, 1.0f);
     
     return float4(colour, 1.0f);
 }

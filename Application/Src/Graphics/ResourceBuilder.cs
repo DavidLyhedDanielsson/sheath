@@ -347,6 +347,85 @@ public class LinearResourceBuilder : IResourceBuilder
         };
     }
 
+    public static Surface CreateBlinnPhongSurface(Settings settings, GraphicsState graphicsState, HeapState heapState, Material material, Dictionary<string, Texture> textures)
+    {
+        var vertexShader = Graphics.Utils.CompileVertexShader("vertex.hlsl").LogIfFailed().Value;
+
+        string pixelShaderPath = "pixel_blinnphong.hlsl";
+        var pixelShader = Graphics.Utils.CompilePixelShader(pixelShaderPath).LogIfFailed().Value;
+
+        var rasterizerDescription = new RasterizerDescription
+        {
+            FillMode = FillMode.Solid,
+            CullMode = CullMode.Back,
+            FrontCounterClockwise = true,
+            DepthBias = 0,
+            DepthBiasClamp = 0,
+            SlopeScaledDepthBias = 0,
+            DepthClipEnable = true,
+            MultisampleEnable = false,
+            AntialiasedLineEnable = false,
+            ForcedSampleCount = 0,
+            ConservativeRaster = ConservativeRasterizationMode.Off
+        };
+
+        var pipelineState = graphicsState.device.CreateGraphicsPipelineState(new GraphicsPipelineStateDescription
+        {
+            RootSignature = graphicsState.rootSignature,
+            VertexShader = vertexShader.GetObjectBytecodeMemory(),
+            PixelShader = pixelShader.GetObjectBytecodeMemory(),
+            DomainShader = null,
+            HullShader = null,
+            GeometryShader = null,
+            StreamOutput = null,
+            BlendState = BlendDescription.Opaque,
+            SampleMask = uint.MaxValue,
+            RasterizerState = rasterizerDescription,
+            DepthStencilState = DepthStencilDescription.ReverseZ,
+            InputLayout = null,
+            IndexBufferStripCutValue = IndexBufferStripCutValue.Disabled,
+            PrimitiveTopologyType = PrimitiveTopologyType.Triangle,
+            RenderTargetFormats = new Format[]
+            {
+                settings.Graphics.BackBufferFormat,
+            },
+            DepthStencilFormat = settings.Graphics.DepthStencilFormat,
+            SampleDescription = SampleDescription.Default,
+            NodeMask = 0,
+            CachedPSO = default,
+            Flags = PipelineStateFlags.None
+        });
+
+        textures.TryGetValue(material.AlbedoTexture, out Texture? albedoTexture);
+        Debug.Assert(albedoTexture != null);
+
+        textures.TryGetValue(material.NormalTexture, out Texture? normalTexture);
+        Debug.Assert(normalTexture != null);
+
+        textures.TryGetValue(material.ORMTexture, out Texture? ormTexture);
+        Debug.Assert(ormTexture != null);
+
+        PSO pso = new PSO
+        {
+            VertexShader = "vertex.hlsl",
+            PixelShader = "pixel_blinnphong.hlsl",
+            BackfaceCulling = false,
+            ID = 3, // TODO :)
+            RasterizerDescription = rasterizerDescription,
+            ID3D12PipelineState = pipelineState,
+        };
+
+        graphicsState.livePsos.Add(pso);
+
+        return new Surface
+        {
+            ID = heapState.surfaceCounter++,
+            PSO = pso,
+            AlbedoTexture = albedoTexture,
+            NormalTexture = normalTexture,
+            ORMTexture = ormTexture,
+        };
+    }
     public static Surface CreateTerrainSurface(Settings settings, GraphicsState graphicsState, HeapState heapState)
     {
         var vertexShader = Graphics.Utils.CompileVertexShader("terrain.hlsl").LogIfFailed().Value;
@@ -402,7 +481,7 @@ public class LinearResourceBuilder : IResourceBuilder
                 VertexShader = "terrain.hlsl",
                 PixelShader = "terrain.hlsl",
                 BackfaceCulling = false,
-                ID = 2, // TODO :)
+                ID = 4, // TODO :)
                 RasterizerDescription = rasterizerDecsription,
                 ID3D12PipelineState = pipelineState,
             },

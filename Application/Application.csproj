@@ -19,6 +19,7 @@
       <None Remove="Src\Graphics\shader\ps\billboard.hlsl" />
       <None Remove="Src\Graphics\shader\ps\pixel.hlsl" />
       <None Remove="Src\Graphics\shader\ps\pixel_alphamask.hlsl" />
+      <None Remove="Src\Graphics\shader\ps\pixel_blinnphong.hlsl" />
       <None Remove="Src\Graphics\shader\ps\terrain.hlsl" />
       <None Remove="Src\Graphics\shader\vs\billboard.hlsl" />
       <None Remove="Src\Graphics\shader\vs\terrain.hlsl" />
@@ -54,6 +55,9 @@
         <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
       </Content>
       <Content Include="Src\Graphics\shader\ps\pixel_alphamask.hlsl">
+        <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+      </Content>
+      <Content Include="Src\Graphics\shader\ps\pixel_blinnphong.hlsl">
         <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
       </Content>
       <Content Include="Src\Graphics\shader\ps\terrain.hlsl">
