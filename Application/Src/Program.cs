@@ -56,7 +56,7 @@ namespace Application
                 , 0);
 
             AssetCatalogue assetCatalogue = new();
-            AssetLoader.Import(assetCatalogue, "Asset/Prop/Phone.gltf");
+            AssetLoader.Import(assetCatalogue, "Asset/Prop/cannon.gltf");
 
             SDL_SysWMinfo wmInfo = new();
             SDL_VERSION(out wmInfo.version);
@@ -91,8 +91,8 @@ namespace Application
 
             // Create bulb stuff
             {
-                Texture texture = LinearResourceBuilder.CreateTexture(graphicsState, heapState, AssetLoader.CreateTexture("Asset/", "Bulb.png").LogIfFailed().Value);
-                textureNames.Add("Bulb.png", texture);
+                Texture texture = LinearResourceBuilder.CreateTexture(graphicsState, heapState, AssetLoader.CreateTexture("Bulb", "Asset/", "Bulb.png").LogIfFailed().Value);
+                textureNames.Add("Bulb", texture);
 
                 Surface surface = LinearResourceBuilder.CreateBillboardSurface(settings, graphicsState, heapState, texture);
                 surfaceNames.Add("Bulb", surface);
@@ -103,7 +103,7 @@ namespace Application
             assetCatalogue.ForEachTextureData(textureData =>
             {
                 Texture texture = LinearResourceBuilder.CreateTexture(graphicsState, heapState, textureData);
-                textureNames.Add(textureData.FilePath, texture);
+                textureNames.Add(textureData.Name, texture);
             });
 
             assetCatalogue.ForEachMaterial(material =>
@@ -164,18 +164,18 @@ namespace Application
 
             World world = World.Create();
 
-            Model phoneModel = showroom.GetShowcase("SM_Phone_01a").Model;
+            Model model = showroom.GetShowcase("SM_Cannon_00").Model;
             world.Create(new ECS.Component.Position(-0.2f, 0.0f, 0.0f), new ECS.Component.Renderable()
             {
-                VIBufferViews = phoneModel.Submeshes.Select(m => m.VIBufferView).ToArray(),
-                Surfaces = phoneModel.Submeshes.Select(m => m.Surface).ToArray(),
+                VIBufferViews = model.Submeshes.Select(m => m.VIBufferView).ToArray(),
+                Surfaces = model.Submeshes.Select(m => m.Surface).ToArray(),
             });
-            Model phoneModelBlinnPhong = showroom.GetShowcase("SM_Phone_01a_blinnphong").Model;
+            /*Model phoneModelBlinnPhong = showroom.GetShowcase("SM_Phone_01a_blinnphong").Model;
             world.Create(new ECS.Component.Position(0.2f, 0.0f, 0.0f), new ECS.Component.Renderable()
             {
                 VIBufferViews = phoneModelBlinnPhong.Submeshes.Select(m => m.VIBufferView).ToArray(),
                 Surfaces = phoneModelBlinnPhong.Submeshes.Select(m => m.Surface).ToArray(),
-            });
+            });*/
 
             //scene.AddInstance(.Model, new InstanceData { transform = Matrix4X4<float>.Identity });
             //var bounds = scene.GetBounds();

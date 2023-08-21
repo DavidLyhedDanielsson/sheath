@@ -121,9 +121,9 @@ float4 main(Vertex vertex) : SV_TARGET {
     const float3 albedo = pow(textures[albedoTextureId].Sample(samp, texCoords).xyz, 2.2f);
     const float3 orm = textures[ormTextureId].Sample(samp, texCoords).xyz;
     
-    const float metalness = orm.b;
-    const float roughness = orm.g;
     const float ambientOcclusion = orm.r;
+    const float roughness = orm.g;
+    const float metalness = orm.b;
 
     const float3 cameraDir = normalize(vertex.cameraDirT);
     const float3 lightDir = normalize(vertex.lightDirT.xyz);

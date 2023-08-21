@@ -6,6 +6,7 @@ using Silk.NET.Maths;
 using Silk.NET.Assimp;
 using File = System.IO.File;
 using System.Numerics;
+using System.Threading.Channels;
 
 namespace Application.Asset;
 
@@ -101,35 +102,26 @@ public class AssetLoader
 
     private static unsafe Material CreateMaterial(Assimp.Assimp assimp, AssetCatalogue assetCatalogue, ref Assimp.Material material)
     {
-        TextureData? diffuseTexture;
+        string materialName;
         {
-            AssimpString aiTexturePath;
-            assimp.GetMaterialTexture(material, Assimp.TextureType.BaseColor, 0, &aiTexturePath, null, null, null, null, null, null);
-            diffuseTexture = assetCatalogue.GetTextureData(aiTexturePath.AsString);
+            AssimpString aiMaterialName;
+            assimp.GetMaterialString(material, Assimp.Assimp.MaterialNameBase, 0, 0, &aiMaterialName);
+            materialName = aiMaterialName;
         }
-        if (diffuseTexture == null)
+
+        TextureData? albedoTexture = assetCatalogue.GetTextureData(materialName + "_Albedo");
+        if (albedoTexture == null)
             throw new NotImplementedException("Nooooooo not yet :(");
 
-        TextureData? normalTexture;
-        {
-            AssimpString aiTexturePath;
-            assimp.GetMaterialTexture(material, Assimp.TextureType.Normals, 0, &aiTexturePath, null, null, null, null, null, null);
-            normalTexture = assetCatalogue.GetTextureData(aiTexturePath.AsString);
-        }
+        TextureData? normalTexture = assetCatalogue.GetTextureData(materialName + "_Normal");
         if (normalTexture == null)
             throw new NotImplementedException("Nooooooo not yet :(");
 
-        TextureData? ormTexture;
-        {
-            AssimpString aiTexturePath;
-            assimp.GetMaterialTexture(material, Assimp.TextureType.DiffuseRoughness, 0, &aiTexturePath, null, null, null, null, null, null);
-            ormTexture = assetCatalogue.GetTextureData(aiTexturePath.AsString);
-        }
+        TextureData? ormTexture = assetCatalogue.GetTextureData(materialName + "_ORM");
         if (ormTexture == null)
             throw new NotImplementedException("Nooooooo not yet :(");
 
         bool hasAlpha = false;
-
 
         Assimp.AssimpString gltfAlphaMode;
         assimp.GetMaterialString(material, "$mat.gltf.alphaMode", 0, 0, &gltfAlphaMode);
@@ -138,20 +130,17 @@ public class AssetLoader
             hasAlpha = true;
         }
 
-        Assimp.AssimpString materialName;
-        assimp.GetMaterialString(material, Assimp.Assimp.MaterialNameBase, 0, 0, &materialName);
-
         return new Material()
         {
-            Name = materialName.AsString,
-            AlbedoTexture = diffuseTexture.FilePath,
+            Name = materialName,
+            AlbedoTexture = albedoTexture.Name,
             AlbedoTextureHasAlpha = hasAlpha,
-            NormalTexture = normalTexture.FilePath,
-            ORMTexture = ormTexture.FilePath,
+            NormalTexture = normalTexture.Name,
+            ORMTexture = ormTexture.Name,
         };
     }
 
-    public static Result<TextureData> CreateTexture(string rootPath, string texturePath)
+    public static Result<TextureData> CreateTexture(string name, string rootPath, string texturePath)
     {
         using (var file = File.OpenRead(Path.Combine(rootPath, texturePath)))
         using (var stream = new MemoryStream())
@@ -164,7 +153,7 @@ public class AssetLoader
 
                 return Result.Ok(new TextureData()
                 {
-                    FilePath = texturePath,
+                    Name = name,
                     Texels = image.Data.ToArray(),
                     Width = image.Width,
                     Height = image.Height,
@@ -179,16 +168,125 @@ public class AssetLoader
     }
 
     [Flags]
-    private enum Channel
+    public enum Channel
     {
         R = 1 << 0,
         G = 1 << 1,
         B = 1 << 2,
         A = 1 << 3,
-        All = R | G | B | A,
     };
 
-    private static Result<TextureData> CreateTexture(string rootPath, string texturePath, Channel channelsToExtract)
+    public struct ChannelSwizzle
+    {
+        public readonly Channel R { get; init; }
+        public readonly Channel G { get; init; }
+        public readonly Channel B { get; init; }
+        public readonly Channel A { get; init; }
+
+        public Channel this[Channel i] {
+            get
+            {
+                return i switch {
+                    Channel.R => R,
+                    Channel.G => G,
+                    Channel.B => B,
+                    Channel.A => R,
+                    _ => throw new Exception("Stop it")
+                };
+            }
+        }
+
+        public Channel this[int i] {
+            get
+            {
+                return i switch {
+                    0 => R,
+                    1 => G,
+                    2 => B,
+                    3 => R,
+                    _ => throw new Exception("Stop it")
+                };
+            }
+        }
+
+
+        public static ChannelSwizzle Identity = new()
+        {
+            R = Channel.R,
+            G = Channel.G,
+            B = Channel.B,
+            A = Channel.A,
+        };
+
+        public ChannelSwizzle(
+            Channel R = Channel.R,
+            Channel G = Channel.G,
+            Channel B = Channel.B,
+            Channel A = Channel.A)
+        {
+            this.R = R;
+            this.G = G;
+            this.B = B;
+            this.A = A;
+        } 
+    }
+
+    public static Result<TextureData> CreateTexture(string name, string rootPath, (string, Channel)[] textures)
+    {
+        return CreateTexture(name, rootPath, textures.Select(pair => (pair.Item1, pair.Item2, ChannelSwizzle.Identity)).ToArray());
+    }
+
+    public static Result<TextureData> CreateTexture(string name, string rootPath, (string, Channel, ChannelSwizzle)[] textures, int channelCount = -1)
+    {
+        Debug.Assert(textures.Length > 0 && textures.Length <= 4);
+
+        int width = -1;
+        int height = -1;
+        byte[] texels = Array.Empty<byte>();
+
+        foreach ((string path, Channel readChannels, ChannelSwizzle channelSwizzle) in textures)
+        {
+            using (var file = File.OpenRead(Path.Combine(rootPath, path)))
+            using (var stream = new MemoryStream())
+            {
+                try
+                {
+                    file.CopyTo(stream);
+                    Stbi.InfoFromMemory(stream, out int w, out int h, out int cc);
+                    if (width == -1)
+                    {
+                        width = w;
+                        height = h;
+                        texels = new byte[width * height * channelCount];
+                    }
+                    else
+                    {
+                        Debug.Assert(width == w);
+                        Debug.Assert(height == h);
+                    }
+                    StbiImage image = Stbi.LoadFromMemory(stream, channelCount);
+
+                    LoadTexels(image, texels, channelCount, readChannels, channelSwizzle);
+
+                }
+                catch (ArgumentException ex)
+                {
+                    return Result.Fail(ex.Message);
+                }
+            }
+        }
+
+        return Result.Ok(new TextureData()
+        {
+            Name = name,
+            Texels = texels,
+            Width = width,
+            Height = height,
+            Channels = channelCount == -1 ? textures.Select(tup => BitOperations.PopCount((uint)tup.Item2)).Sum() : channelCount,
+        });
+    }
+
+    private static Result<TextureData> CreateTexture(string name, string rootPath, string texturePath, Channel channelsToExtract)
     {
         using (var file = File.OpenRead(Path.Combine(rootPath, texturePath)))
         using (var stream = new MemoryStream())
@@ -201,26 +299,12 @@ public class AssetLoader
 
                 int numberOfChannelsToExtract = BitOperations.PopCount((uint)channelsToExtract);
 
-                Debug.Assert(channelCount >= numberOfChannelsToExtract);
-
-                var extractMask = new byte[]
-                {
-                    Convert.ToByte((channelsToExtract & Channel.R) != 0),
-                    Convert.ToByte((channelsToExtract & Channel.G) != 0),
-                    Convert.ToByte((channelsToExtract & Channel.B) != 0),
-                    Convert.ToByte((channelsToExtract & Channel.A) != 0),
-                };
-
                 var texels = new byte[width * height * numberOfChannelsToExtract];
-                for(int i = 0; i < width * height; ++i)
-                {
-                    for(int texelI = 0, channelI = 0; texelI < numberOfChannelsToExtract && channelI < channelCount; texelI += extractMask[channelI], ++channelI)
-                        texels[i * numberOfChannelsToExtract + texelI] = (byte)(extractMask[channelI] * image.Data[i * channelCount + channelI]);
-                }
+                LoadTexels(image, texels, numberOfChannelsToExtract, channelsToExtract, ChannelSwizzle.Identity);
 
                 return Result.Ok(new TextureData()
                 {
-                    FilePath = texturePath,
+                    Name = name,
                     Texels = texels,
                     Width = image.Width,
                     Height = image.Height,
@@ -230,6 +314,35 @@ public class AssetLoader
             catch (ArgumentException ex)
             {
                 return Result.Fail(ex.Message);
+            }
+        }
+    }
+
+    private static void LoadTexels(StbiImage image, byte[] texels, int texelChannelCount, Channel channelsToExtract, ChannelSwizzle channelSwizzle)
+    {
+        int numberOfChannelsToExtract = BitOperations.PopCount((uint)channelsToExtract);
+
+        Debug.Assert(image.NumChannels >= numberOfChannelsToExtract);
+        Debug.Assert(image.Width * image.Height * texelChannelCount == texels.Length);
+
+        var extractMask = new bool[]
+        {
+            (channelsToExtract & Channel.R) == Channel.R,
+            (channelsToExtract & Channel.G) == Channel.G,
+            (channelsToExtract & Channel.B) == Channel.B,
+            (channelsToExtract & Channel.A) == Channel.A,
+        };
+
+        //var texels = new byte[width * height * numberOfChannelsToExtract];
+        for (int texelI = 0; texelI < image.Width * image.Height; ++texelI)
+        {
+            for (int readChannel = 0; readChannel < 4; ++readChannel)
+            {
+                if (extractMask[readChannel])
+                {
+                    int writeChannel = BitOperations.TrailingZeroCount((int)channelSwizzle[readChannel]);
+                    texels[texelI * texelChannelCount + writeChannel] = image.Data[texelI * image.NumChannels + readChannel];
+                }
             }
         }
     }
@@ -253,46 +366,75 @@ public class AssetLoader
             //var importer = new Assimp.AssimpContext();
             //var scene = importer.ImportFile(file, Assimp.PostProcessPreset.TargetRealTimeQuality);
 
+            var expectedTextures = new[]
+            {
+                TextureType.BaseColor,
+                TextureType.Normals,
+                TextureType.Metalness,
+                TextureType.DiffuseRoughness,
+                TextureType.Lightmap,
+            };
+
+            string rootDir = Path.GetDirectoryName(file) ?? string.Empty;
 
             AssimpForEach(scene->MNumMaterials, scene->MMaterials, (ref Assimp.Material material) =>
             {
-                var expectedTextures = new[]
-                {
-                    Assimp.TextureType.BaseColor,
-                    Assimp.TextureType.Normals,
-                    Assimp.TextureType.Metalness,
-                    Assimp.TextureType.DiffuseRoughness,
-                    Assimp.TextureType.Lightmap,
-                };
-
-                foreach(var type in expectedTextures)
-                {
+                foreach (var type in expectedTextures)
                     Debug.Assert(assimp.GetMaterialTextureCount(material, type) == 1);
-                }
+
+                Dictionary<TextureType, string> texturePaths = new();
 
                 foreach (var type in expectedTextures)
                 {
-                    string texturePath;
-
-                    {
-                        AssimpString aiTexturePath;
-                        assimp.GetMaterialTexture(material, type, 0, &aiTexturePath, null, null, null, null, null, null);
-                        texturePath = aiTexturePath.AsString;
-                    }
-
-                    if (!catalogue.HasTexture(texturePath))
-                    {
-                        Result<TextureData> texture = CreateTexture(Path.GetDirectoryName(file) ?? string.Empty, texturePath);
-
-                        if (texture.IsSuccess)
-                            catalogue.AddTexture(texture.Value);
-                        else
-                        {
-                            Console.Error.Write("Couldn't load file at ");
-                            Console.Error.WriteLine(file);
-                        }
-                    }
+                    AssimpString aiTexturePath;
+                    assimp.GetMaterialTexture(material, type, 0, &aiTexturePath, null, null, null, null, null, null);
+                    texturePaths.Add(type, aiTexturePath.AsString);
                 }
+
+                string metalnessPath = texturePaths[TextureType.Metalness];
+                string roughnessPath = texturePaths[TextureType.DiffuseRoughness];
+                string occlusionPath = texturePaths[TextureType.Lightmap];
+
+                string materialName;
+                {
+                    AssimpString aiMaterialName;
+                    assimp.GetMaterialString(material, Assimp.Assimp.MaterialNameBase, 0, 0, &aiMaterialName);
+                    materialName = aiMaterialName.AsString;
+                }
+                string ormTextureName = materialName + "_ORM";
+
+                TextureData ormTexture;
+                if (metalnessPath == roughnessPath && metalnessPath == occlusionPath)
+                {
+                    Debugger.Break(); // TODO: Reminder to test :)
+                    ormTexture = CreateTexture(ormTextureName, rootDir, new[]
+                    {
+                        (metalnessPath, Channel.R | Channel.G | Channel.B)
+                    }).Value;
+
+                }
+                else if (metalnessPath == roughnessPath)
+                {
+                    ormTexture = CreateTexture(ormTextureName, rootDir, new[]
+                    {
+                        (occlusionPath, Channel.R, ChannelSwizzle.Identity),
+                        (metalnessPath, Channel.G | Channel.B, new ChannelSwizzle(G: Channel.G, B: Channel.B)),
+                    }, 4).Value;
+                }
+                else
+                {
+                    Debugger.Break(); // TODO: Reminder to test :)
+                    ormTexture = CreateTexture(ormTextureName, rootDir, new[]
+                    {
+                        (occlusionPath, Channel.R, ChannelSwizzle.Identity),
+                        (roughnessPath, Channel.G, new ChannelSwizzle(R: Channel.G)),
+                        (metalnessPath, Channel.B, new ChannelSwizzle(R: Channel.B)),
+                    }, 4).Value;
+                }
+
+                catalogue.AddTexture(ormTexture);
+                catalogue.AddTexture(CreateTexture(materialName + "_Albedo", rootDir, texturePaths[TextureType.BaseColor]).Value);
+                catalogue.AddTexture(CreateTexture(materialName + "_Normal", rootDir, texturePaths[TextureType.Normals]).Value);
             });
 
             AssimpForEach(scene->MNumMaterials, scene->MMaterials, (ref Assimp.Material material) => catalogue.AddMaterial(CreateMaterial(assimp, catalogue, ref material)));

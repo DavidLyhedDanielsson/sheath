@@ -42,7 +42,7 @@ public class AssetCatalogue
 
     public void AddTexture(TextureData textureDataId)
     {
-        _textures.Add(textureDataId.FilePath, textureDataId);
+        _textures.Add(textureDataId.Name, textureDataId);
     }
 
     public TextureData? GetTextureData(string textureDataId)
