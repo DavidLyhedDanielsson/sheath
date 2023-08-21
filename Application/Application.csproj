@@ -10,11 +10,30 @@
 
     <ItemGroup>
       <None Remove="Asset\Bulb.png" />
+      <None Remove="Asset\Prop\B.png" />
+      <None Remove="Asset\Prop\cannon.bin" />
+      <None Remove="Asset\Prop\cannon.gltf" />
+      <None Remove="Asset\Prop\cannon_ball_crate.bin" />
+      <None Remove="Asset\Prop\cannon_ball_crate.gltf" />
+      <None Remove="Asset\Prop\G.png" />
+      <None Remove="Asset\Prop\MI_Cannon_00_BaseColor.png" />
+      <None Remove="Asset\Prop\MI_Cannon_00_MetallicRoughness.png" />
+      <None Remove="Asset\Prop\MI_Cannon_00_Normal.png" />
+      <None Remove="Asset\Prop\MI_Cannon_00_Occlusion.png" />
+      <None Remove="Asset\Prop\MI_Pirate_Cannon_Ball_00_BaseColor.png" />
+      <None Remove="Asset\Prop\MI_Pirate_Cannon_Ball_00_MetallicRoughness.png" />
+      <None Remove="Asset\Prop\MI_Pirate_Cannon_Ball_00_Normal.png" />
+      <None Remove="Asset\Prop\MI_Pirate_Cannon_Ball_00_Occlusion.png" />
+      <None Remove="Asset\Prop\MI_Pirate_Crate_00_BaseColor.png" />
+      <None Remove="Asset\Prop\MI_Pirate_Crate_00_MetallicRoughness.png" />
+      <None Remove="Asset\Prop\MI_Pirate_Crate_00_Normal.png" />
+      <None Remove="Asset\Prop\MI_Pirate_Crate_00_Occlusion.png" />
       <None Remove="Asset\Prop\phone.bin" />
       <None Remove="Asset\Prop\phone.gltf" />
       <None Remove="Asset\Prop\Phone_BaseColor.png" />
       <None Remove="Asset\Prop\Phone_Normal.png" />
       <None Remove="Asset\Prop\Phone_ORM.png" />
+      <None Remove="Asset\Prop\R.png" />
       <None Remove="SDL2.dll" />
       <None Remove="Src\Graphics\shader\ps\billboard.hlsl" />
       <None Remove="Src\Graphics\shader\ps\pixel.hlsl" />
@@ -30,6 +49,60 @@
       <Content Include="Asset\Bulb.png">
         <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
       </Content>
+      <Content Include="Asset\Prop\B.png">
+        <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+      </Content>
+      <Content Include="Asset\Prop\cannon.bin">
+        <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+      </Content>
+      <Content Include="Asset\Prop\cannon.gltf">
+        <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+      </Content>
+      <Content Include="Asset\Prop\cannon_ball_crate.bin">
+        <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+      </Content>
+      <Content Include="Asset\Prop\cannon_ball_crate.gltf">
+        <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+      </Content>
+      <Content Include="Asset\Prop\G.png">
+        <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+      </Content>
+      <Content Include="Asset\Prop\MI_Cannon_00_BaseColor.png">
+        <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+      </Content>
+      <Content Include="Asset\Prop\MI_Cannon_00_MetallicRoughness.png">
+        <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+      </Content>
+      <Content Include="Asset\Prop\MI_Cannon_00_Normal.png">
+        <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+      </Content>
+      <Content Include="Asset\Prop\MI_Cannon_00_Occlusion.png">
+        <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+      </Content>
+      <Content Include="Asset\Prop\MI_Pirate_Cannon_Ball_00_BaseColor.png">
+        <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+      </Content>
+      <Content Include="Asset\Prop\MI_Pirate_Cannon_Ball_00_MetallicRoughness.png">
+        <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+      </Content>
+      <Content Include="Asset\Prop\MI_Pirate_Cannon_Ball_00_Normal.png">
+        <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+      </Content>
+      <Content Include="Asset\Prop\MI_Pirate_Cannon_Ball_00_Occlusion.png">
+        <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+      </Content>
+      <Content Include="Asset\Prop\MI_Pirate_Crate_00_BaseColor.png">
+        <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+      </Content>
+      <Content Include="Asset\Prop\MI_Pirate_Crate_00_MetallicRoughness.png">
+        <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+      </Content>
+      <Content Include="Asset\Prop\MI_Pirate_Crate_00_Normal.png">
+        <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+      </Content>
+      <Content Include="Asset\Prop\MI_Pirate_Crate_00_Occlusion.png">
+        <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+      </Content>
       <Content Include="Asset\Prop\phone.bin">
         <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
       </Content>
@@ -43,6 +116,9 @@
         <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
       </Content>
       <Content Include="Asset\Prop\Phone_ORM.png">
+        <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+      </Content>
+      <Content Include="Asset\Prop\R.png">
         <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
       </Content>
       <Content Include="SDL2.dll">
