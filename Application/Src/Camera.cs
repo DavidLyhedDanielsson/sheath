@@ -17,9 +17,19 @@ namespace Application
             _pitch *= Quaternion.CreateFromYawPitchRoll(0.0f, increase, 0.0f);
         }
 
+        public void SetPitch(float val)
+        {
+            _pitch = Quaternion.CreateFromYawPitchRoll(0.0f, val, 0.0f);
+        }
+
         public void Yaw(float increase)
         {
             _yaw *= Quaternion.CreateFromYawPitchRoll(increase, 0.0f, 0.0f);
+        }
+
+        public void SetYaw(float val)
+        {
+            _yaw = Quaternion.CreateFromYawPitchRoll(val, 0.0f, 0.0f);
         }
 
         public void Update(float delta)

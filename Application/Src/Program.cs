@@ -209,17 +209,17 @@ namespace Application
 
             Stopwatch uptime = Stopwatch.StartNew();
 
-            Vector3D<float> cameraPosition = settings.State.CameraPosition;
+            //Vector3D<float> cameraPosition = settings.State.CameraPosition;
             Vector3D<float> lightPosition = new(0.0f, 0.0f, -1.0f);
 
             // bool spinCamera = false;
             //var center = bounds.Center;
             //var radius = 0.5f;
-            Matrix4X4<float> viewMatrix = Matrix4X4.CreateLookAt(
+            /*Matrix4X4<float> viewMatrix = Matrix4X4.CreateLookAt(
                 cameraPosition,
                 new Vector3D<float>(0.0f, 0.1f, 0.0f),
                 Vector3D<float>.UnitY
-            );
+            );*/
 
             // Reload shaders
             List<RenamedEventArgs> reloadFiles = new();
@@ -279,6 +279,7 @@ namespace Application
                 while (SDL_PollEvent(out SDL_Event ev) != 0)
                 {
                     imGuiSdlBackend.ImGui_ImplSDL2_ProcessEvent(ev);
+
                     switch (ev.type)
                     {
                         case SDL_EventType.SDL_QUIT:
@@ -289,10 +290,16 @@ namespace Application
                                 running = false;
                             break;
                         case SDL_EventType.SDL_MOUSEBUTTONUP:
+                            if (ImGui.GetIO().WantCaptureMouse)
+                                break;
+
                             if (ev.button.button == SDL_BUTTON_LEFT)
                                 dragging = false;
                             break;
                         case SDL_EventType.SDL_MOUSEBUTTONDOWN:
+                            if (ImGui.GetIO().WantCaptureMouse)
+                                break;
+
                             if (ev.button.button == SDL_BUTTON_LEFT)
                                 dragging = true;
                             break;
@@ -300,6 +307,9 @@ namespace Application
                             camera._targetViewDistance += ev.wheel.y * -0.01f;
                             break;
                         case SDL_EventType.SDL_MOUSEMOTION:
+                            if (ImGui.GetIO().WantCaptureMouse)
+                                break;
+
                             if(dragging)
                             {
                                 camera.Pitch(ev.motion.yrel * -0.001f);
@@ -316,18 +326,18 @@ namespace Application
                     MathF.Sin((float)uptime.Elapsed.TotalSeconds * 0.5f),
                     MathF.Sin((float)uptime.Elapsed.TotalSeconds * 0.33f) * 5.0f + 1.0f
                 );*/
-                lightPosition = new Vector3D<float>(
+                /*lightPosition = new Vector3D<float>(
                     MathF.Cos((float)uptime.Elapsed.TotalSeconds * 0.45f) * 0.5f,
-                    MathF.Sin((float)uptime.Elapsed.TotalSeconds * 0.25f) * 0.5f,
+                    MathF.Sin((float)uptime.Elapsed.TotalSeconds * 0.25f) * 1.5f,
                     MathF.Sin((float)uptime.Elapsed.TotalSeconds * 0.35f) * 0.5f
-                );
+                );*/
 
                 Vector3D<float> viewPosition = new(0.0f, 0.0f, camera._viewDistance);
                 viewPosition = Vector3D.Transform(viewPosition, camera._rotation);
 
                 camera.Update(0.1666f);
 
-                viewMatrix = Matrix4X4.CreateLookAt(viewPosition, Vector3D<float>.Zero, new Vector3D<float>(0.0f, 1.0f, 0.0f));
+                Matrix4X4<float> viewMatrix = Matrix4X4.CreateLookAt(viewPosition, Vector3D<float>.Zero, new Vector3D<float>(0.0f, 1.0f, 0.0f));
 
                 /*if (spinCamera)
                 {
@@ -356,7 +366,7 @@ namespace Application
                 {
                     FrameData frameData = new FrameData
                     {
-                        CameraPosition = cameraPosition,
+                        CameraPosition = viewPosition,
                         LightPosition = lightPosition,
                     };
 
@@ -513,8 +523,19 @@ namespace Application
                 ImGui.Begin("Window");
                 unsafe
                 {
-                    ImGui.DragFloat3("Light position", ref *(Vector3*)&lightPosition);
-                    ImGui.DragFloat3("Camera position", ref *(Vector3*)&cameraPosition, 0.001f);
+                    ImGui.DragFloat3("Light position", ref *(Vector3*)&lightPosition, 0.001f);
+
+                    Vector3 cPos = viewPosition.ToSystem();
+                    if(ImGui.DragFloat3("Camera position", ref cPos, 0.001f))
+                    {
+                        var viewDir = Vector3.Normalize(cPos);
+
+                        float yaw = MathF.Asin(-viewDir.Y);
+                        float pitch = MathF.Atan2(viewDir.X, viewDir.Z);
+
+                        camera.SetYaw(yaw);
+                        camera.SetPitch(pitch);
+                    }
                 }
                 //ImGui.Checkbox("Spin camera", ref spinCamera);
                 ImGui.End();
@@ -542,7 +563,7 @@ namespace Application
                 SDL_GetWindowSize(sdlWindow, out int sizeX, out int sizeY);
                 settings.Window.Width = sizeX;
                 settings.Window.Height = sizeY;
-                settings.State.CameraPosition = cameraPosition;
+                //settings.State.CameraPosition = cameraPosition;
                 settings.Save();
             }
 
