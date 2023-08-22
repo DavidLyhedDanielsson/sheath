@@ -22,7 +22,7 @@ namespace ImGuiBackend
             internal IntPtr[] MouseCursors = new IntPtr[(int)ImGuiMouseCursor.COUNT];
             internal IntPtr LastMouseCursor;
             internal int PendingMouseLeaveFrame;
-            internal string ClipboardTextData;
+            //internal string ClipboardTextData; TODO
             internal bool MouseCanUseGlobalState;
         };
 

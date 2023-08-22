@@ -72,8 +72,8 @@ namespace Application
             ImGui.CreateContext();
             ImGui.StyleColorsDark();
             ImGuiBackend.Renderer imGuiRenderer = new();
-            var imGuiDescHeap = graphicsState.device.CreateDescriptorHeap(new(DescriptorHeapType.ConstantBufferViewShaderResourceViewUnorderedAccessView, 1, DescriptorHeapFlags.ShaderVisible));
-            imGuiRenderer.ImGui_ImplDX12_Init(graphicsState.device, settings.Graphics.BackBufferCount, settings.Graphics.BackBufferFormat, imGuiDescHeap.GetCPUDescriptorHandleForHeapStart(), imGuiDescHeap.GetGPUDescriptorHandleForHeapStart());
+            var imGuiDescHeap = graphicsState.Device.CreateDescriptorHeap(new(DescriptorHeapType.ConstantBufferViewShaderResourceViewUnorderedAccessView, 1, DescriptorHeapFlags.ShaderVisible));
+            imGuiRenderer.ImGui_ImplDX12_Init(graphicsState.Device, settings.Graphics.BackBufferCount, settings.Graphics.BackBufferFormat, imGuiDescHeap.GetCPUDescriptorHandleForHeapStart(), imGuiDescHeap.GetGPUDescriptorHandleForHeapStart());
 
             ImGuiBackend.SdlBackend imGuiSdlBackend = new(sdlWindow);
 
@@ -91,7 +91,7 @@ namespace Application
 
             // Create bulb stuff
             {
-                Texture texture = LinearResourceBuilder.CreateTexture(graphicsState, heapState, AssetLoader.CreateTexture("Bulb", "Asset/", "Bulb.png").LogIfFailed().Value);
+                Texture texture = LinearResourceBuilder.CreateTexture(graphicsState, heapState, TextureLoader.CreateTexture("Bulb", "Asset/Bulb.png").LogIfFailed().Value);
                 textureNames.Add("Bulb", texture);
 
                 Surface surface = LinearResourceBuilder.CreateBillboardSurface(settings, graphicsState, heapState, texture);
@@ -133,8 +133,9 @@ namespace Application
                 Surface[] surfaces = new Surface[materials.Length];
                 for (int i = 0; i < materials.Length; ++i)
                 {
-                    surfaceNames.TryGetValue(materials[i], out surfaces[i]);
-                    Debug.Assert(surfaces[i] != null);
+                    surfaceNames.TryGetValue(materials[i], out Surface? surface);
+                    Debug.Assert(surfaces != null);
+                    surfaces[i] = surface!;
                 }
 
                 meshNames.TryGetValue(vertexDataId, out Mesh? mesh);
@@ -150,8 +151,9 @@ namespace Application
                 Surface[] surfaces = new Surface[materials.Length];
                 for (int i = 0; i < materials.Length; ++i)
                 {
-                    surfaceNames.TryGetValue(materials[i] + "_blinnphong", out surfaces[i]);
-                    Debug.Assert(surfaces[i] != null);
+                    surfaceNames.TryGetValue(materials[i] + "_blinnphong", out Surface? surface);
+                    Debug.Assert(surfaces != null);
+                    surfaces[i] = surface!;
                 }
 
                 meshNames.TryGetValue(vertexDataId, out Mesh? mesh);
@@ -164,7 +166,7 @@ namespace Application
 
             World world = World.Create();
 
-            Model model = showroom.GetShowcase("SM_Cannon_00").Model;
+            Model model = showroom.GetShowcase("SM_Cannon_00")!.Model;
             world.Create(new ECS.Component.Position(-0.2f, 0.0f, 0.0f), new ECS.Component.Renderable()
             {
                 VIBufferViews = model.Submeshes.Select(m => m.VIBufferView).ToArray(),
@@ -180,31 +182,31 @@ namespace Application
             //scene.AddInstance(.Model, new InstanceData { transform = Matrix4X4<float>.Identity });
             //var bounds = scene.GetBounds();
 
-            ID3D12Resource cameraBuffer = graphicsState.device.CreateCommittedResource(HeapType.Upload,
+            ID3D12Resource cameraBuffer = graphicsState.Device.CreateCommittedResource(HeapType.Upload,
                 ResourceDescription.Buffer(1024), ResourceStates.AllShaderResource);
-            graphicsState.device.CreateConstantBufferView(new ConstantBufferViewDescription(cameraBuffer, 1024),
-                heapState.cbvUavSrvDescriptorHeap.Segments[HeapConfig.Segments.cbvs].NextCpuHandle());
+            graphicsState.Device.CreateConstantBufferView(new ConstantBufferViewDescription(cameraBuffer, 1024),
+                heapState.CbvUavSrvDescriptorHeap.Segments[HeapConfig.Segments.cbvs].NextCpuHandle());
 
             // This should be moved into a common heap and uploaded through upload heap
-            ID3D12Resource perFrameBuffer = graphicsState.device.CreateCommittedResource(HeapType.Upload,
+            ID3D12Resource perFrameBuffer = graphicsState.Device.CreateCommittedResource(HeapType.Upload,
                 ResourceDescription.Buffer(1024), ResourceStates.AllShaderResource);
-            graphicsState.device.CreateConstantBufferView(new ConstantBufferViewDescription(perFrameBuffer, 1024),
-                heapState.cbvUavSrvDescriptorHeap.Segments[HeapConfig.Segments.cbvs].NextCpuHandle());
+            graphicsState.Device.CreateConstantBufferView(new ConstantBufferViewDescription(perFrameBuffer, 1024),
+                heapState.CbvUavSrvDescriptorHeap.Segments[HeapConfig.Segments.cbvs].NextCpuHandle());
 
-            graphicsState.commandList.Close();
-            graphicsState.commandQueue.ExecuteCommandList(graphicsState.commandList);
+            graphicsState.CommandList.Close();
+            graphicsState.CommandQueue.ExecuteCommandList(graphicsState.CommandList);
             graphicsState.WaitUntilIdle();
 
-            heapState.uploadBuffer.UploadsDone();
-            while (heapState.uploadBuffer.HasMoreUploads())
+            heapState.UploadBuffer.UploadsDone();
+            while (heapState.UploadBuffer.HasMoreUploads())
             {
-                graphicsState.commandAllocator.Reset();
-                graphicsState.commandList.Reset(graphicsState.commandAllocator);
-                heapState.uploadBuffer.QueueRemainingUploads(graphicsState.commandList);
-                graphicsState.commandList.Close();
-                graphicsState.commandQueue.ExecuteCommandList(graphicsState.commandList);
+                graphicsState.CommandAllocator.Reset();
+                graphicsState.CommandList.Reset(graphicsState.CommandAllocator);
+                heapState.UploadBuffer.QueueRemainingUploads(graphicsState.CommandList);
+                graphicsState.CommandList.Close();
+                graphicsState.CommandQueue.ExecuteCommandList(graphicsState.CommandList);
                 graphicsState.WaitUntilIdle();
-                heapState.uploadBuffer.UploadsDone();
+                heapState.UploadBuffer.UploadsDone();
             }
 
             Stopwatch uptime = Stopwatch.StartNew();
@@ -230,7 +232,7 @@ namespace Application
             vsWatcher.Filter = "*.hlsl";
             vsWatcher.Renamed += (object sender, RenamedEventArgs args) =>
             {
-                if (args.Name.EndsWith(".TMP"))
+                if (args.Name!.EndsWith(".TMP"))
                     return;
 
                 reloadFiles.Add(args);
@@ -242,7 +244,7 @@ namespace Application
             psWatcher.Filter = "*.hlsl";
             psWatcher.Renamed += (object sender, RenamedEventArgs args) =>
             {
-                if (args.Name.EndsWith(".TMP"))
+                if (args.Name!.EndsWith(".TMP"))
                     return;
 
                 reloadFiles.Add(args);
@@ -319,7 +321,7 @@ namespace Application
                     }
                 }
 
-                float lightRadius = 10.0f;
+                //float lightRadius = 10.0f;
                 //lightPosition = new Vector3D<float>(MathF.Cos((float)uptime.Elapsed.TotalSeconds), 0.0f, 1.0f);
                 /*lightPosition = new Vector3D<float>(
                     MathF.Cos((float)uptime.Elapsed.TotalSeconds * 0.5f),
@@ -376,38 +378,38 @@ namespace Application
                     perFrameBuffer.Unmap(0);
                 }
 
-                var commandList = graphicsState.commandList;
-                graphicsState.commandAllocator.Reset();
-                commandList.Reset(graphicsState.commandAllocator);
+                var commandList = graphicsState.CommandList;
+                graphicsState.CommandAllocator.Reset();
+                commandList.Reset(graphicsState.CommandAllocator);
 
                 var frameIndex = (int)(graphicsState.frameCount % 3);
 
                 commandList.ResourceBarrier(
                     new ResourceBarrier[] {
-                        ResourceBarrier.BarrierTransition(graphicsState.renderTargets[frameIndex], ResourceStates.Common, ResourceStates.RenderTarget),
+                        ResourceBarrier.BarrierTransition(graphicsState.RenderTargets[frameIndex], ResourceStates.Common, ResourceStates.RenderTarget),
                     }
                 );
 
                 commandList.ClearRenderTargetView(
-                    graphicsState.rtvDescriptorHeap.GetCPUDescriptorHandleForHeapStart() +
-                    frameIndex * graphicsState.rtvDescriptorSize, Vortice.Mathematics.Colors.LemonChiffon);
+                    graphicsState.RtvDescriptorHeap.GetCPUDescriptorHandleForHeapStart() +
+                    frameIndex * graphicsState.RtvDescriptorSize, Vortice.Mathematics.Colors.LemonChiffon);
                 commandList.ClearDepthStencilView(
-                    graphicsState.dsvDescriptorHeap.GetCPUDescriptorHandleForHeapStart(),
+                    graphicsState.DsvDescriptorHeap.GetCPUDescriptorHandleForHeapStart(),
                     ClearFlags.Depth | ClearFlags.Stencil,
                     settings.Graphics.DepthClearValue,
                     0
                 );
                 commandList.OMSetRenderTargets(
-                    graphicsState.rtvDescriptorHeap.GetCPUDescriptorHandleForHeapStart() + frameIndex * graphicsState.rtvDescriptorSize,
-                    graphicsState.dsvDescriptorHeap.GetCPUDescriptorHandleForHeapStart()
+                    graphicsState.RtvDescriptorHeap.GetCPUDescriptorHandleForHeapStart() + frameIndex * graphicsState.RtvDescriptorSize,
+                    graphicsState.DsvDescriptorHeap.GetCPUDescriptorHandleForHeapStart()
                 );
 
                 commandList.RSSetViewport(0.0f, 0.0f, settings.Window.Width, settings.Window.Height);
                 commandList.RSSetScissorRect(settings.Window.Width, settings.Window.Height);
                 commandList.IASetPrimitiveTopology(Vortice.Direct3D.PrimitiveTopology.TriangleList);
-                commandList.SetGraphicsRootSignature(graphicsState.rootSignature);
-                commandList.SetDescriptorHeaps(heapState.cbvUavSrvDescriptorHeap.ID3D12DescriptorHeap);
-                commandList.SetGraphicsRootDescriptorTable(1, heapState.cbvUavSrvDescriptorHeap.ID3D12DescriptorHeap.GetGPUDescriptorHandleForHeapStart());
+                commandList.SetGraphicsRootSignature(graphicsState.RootSignature);
+                commandList.SetDescriptorHeaps(heapState.CbvUavSrvDescriptorHeap.ID3D12DescriptorHeap);
+                commandList.SetGraphicsRootDescriptorTable(1, heapState.CbvUavSrvDescriptorHeap.ID3D12DescriptorHeap.GetGPUDescriptorHandleForHeapStart());
 
                 //Dictionary<PSO, List<InstanceData>> instanceDatas = new();
                 Dictionary<PSO, Dictionary<VIBufferView, (List<Surface>, List<InstanceData>)>> renderPsos = new();
@@ -449,35 +451,35 @@ namespace Application
                     foreach (var (bufferView, (surfaces, instanceDatas)) in drawData)
                     {
                         ReadOnlySpan<InstanceData> dataSpan = CollectionsMarshal.AsSpan(instanceDatas);
-                        heapState.instanceDataBuffer.SetData(dataSpan, instanceDataOffset * SizeOf<InstanceData>());
+                        heapState.InstanceDataBuffer.SetData(dataSpan, instanceDataOffset * SizeOf<InstanceData>());
 
                         unsafe
                         {
                             byte* data;
-                            heapState.perDrawBuffer.Map(0, (void**)&data);
+                            heapState.PerDrawBuffer.Map(0, (void**)&data);
 
                             for (int i = 0; i < surfaces.Count; ++i)
                             {
                                 Debug.Assert(SizeOf<ModelData>() <= 256);
                                 ModelData modelData = new()
                                 {
-                                    AlbedoTextureId = surfaces[i].AlbedoTexture.ID,
-                                    NormalTextureId = surfaces[i].NormalTexture.ID,
-                                    OrmTextureId = surfaces[i].ORMTexture.ID,
+                                    AlbedoTextureId = surfaces[i].AlbedoTexture!.ID,
+                                    NormalTextureId = surfaces[i].NormalTexture!.ID,
+                                    OrmTextureId = surfaces[i].ORMTexture!.ID,
                                     VertexBufferId = bufferView.VertexBufferId,
                                     InstanceStartOffset = instanceDataOffset,
                                 };
                                 Buffer.MemoryCopy(&modelData, data + drawOffset * 256, 256, SizeOf<ModelData>());
 
                             }
-                            heapState.perDrawBuffer.Unmap(0);
+                            heapState.PerDrawBuffer.Unmap(0);
                         }
 
                         instanceDataOffset += instanceDatas.Count;
 
-                        graphicsState.commandList.IASetIndexBuffer(new IndexBufferView(bufferView.IndexBuffer.GPUVirtualAddress, bufferView.IndexBufferTotalCount * SizeOf(typeof(uint)), Format.R32_UInt));
-                        graphicsState.commandList.SetGraphicsRootConstantBufferView(0, heapState.perDrawBuffer.GPUVirtualAddress + (ulong)(drawOffset * 256));
-                        graphicsState.commandList.DrawIndexedInstanced(bufferView.IndexCount, instanceDatas.Count, bufferView.IndexStart, 0, 0);
+                        graphicsState.CommandList.IASetIndexBuffer(new IndexBufferView(bufferView.IndexBuffer.GPUVirtualAddress, bufferView.IndexBufferTotalCount * SizeOf(typeof(uint)), Format.R32_UInt));
+                        graphicsState.CommandList.SetGraphicsRootConstantBufferView(0, heapState.PerDrawBuffer.GPUVirtualAddress + (ulong)(drawOffset * 256));
+                        graphicsState.CommandList.DrawIndexedInstanced(bufferView.IndexCount, instanceDatas.Count, bufferView.IndexStart, 0, 0);
 
                         drawOffset++;
                     }
@@ -488,20 +490,20 @@ namespace Application
                 commandList.RSSetViewport(0.0f, 0.0f, settings.Window.Width, settings.Window.Height);
                 commandList.RSSetScissorRect(settings.Window.Width, settings.Window.Height);
                 commandList.IASetPrimitiveTopology(Vortice.Direct3D.PrimitiveTopology.TriangleList);
-                commandList.SetGraphicsRootSignature(graphicsState.rootSignature);
-                commandList.SetDescriptorHeaps(heapState.cbvUavSrvDescriptorHeap.ID3D12DescriptorHeap);
-                commandList.SetGraphicsRootDescriptorTable(1, heapState.cbvUavSrvDescriptorHeap.ID3D12DescriptorHeap.GetGPUDescriptorHandleForHeapStart());
-                graphicsState.commandList.SetPipelineState(bulbSurface.PSO.ID3D12PipelineState);
+                commandList.SetGraphicsRootSignature(graphicsState.RootSignature);
+                commandList.SetDescriptorHeaps(heapState.CbvUavSrvDescriptorHeap.ID3D12DescriptorHeap);
+                commandList.SetGraphicsRootDescriptorTable(1, heapState.CbvUavSrvDescriptorHeap.ID3D12DescriptorHeap.GetGPUDescriptorHandleForHeapStart());
+                graphicsState.CommandList.SetPipelineState(bulbSurface.PSO.ID3D12PipelineState);
                 unsafe
                 {
                     byte* data;
-                    heapState.perDrawBuffer.Map(0, (void**)&data);
+                    heapState.PerDrawBuffer.Map(0, (void**)&data);
                     data += drawOffset * 256;
 
                     Debug.Assert(SizeOf<ModelData>() <= 256);
                     ModelData modelData = new()
                     {
-                        AlbedoTextureId = bulbSurface.AlbedoTexture.ID,
+                        AlbedoTextureId = bulbSurface.AlbedoTexture!.ID,
                         NormalTextureId = -1,
                         OrmTextureId = -1,
                         VertexBufferId = -1,
@@ -509,10 +511,10 @@ namespace Application
                     };
                     Buffer.MemoryCopy(&modelData, data, 256, SizeOf<ModelData>());
 
-                    heapState.perDrawBuffer.Unmap(0);
+                    heapState.PerDrawBuffer.Unmap(0);
                 }
-                graphicsState.commandList.SetGraphicsRootConstantBufferView(0, heapState.perDrawBuffer.GPUVirtualAddress + (ulong)(drawOffset * 256));
-                graphicsState.commandList.DrawInstanced(6, 1, 0, 0);
+                graphicsState.CommandList.SetGraphicsRootConstantBufferView(0, heapState.PerDrawBuffer.GPUVirtualAddress + (ulong)(drawOffset * 256));
+                graphicsState.CommandList.DrawInstanced(6, 1, 0, 0);
                 drawOffset++;
 
 
@@ -543,15 +545,15 @@ namespace Application
 
                 ImGui.Render();
                 commandList.SetDescriptorHeaps(imGuiDescHeap);
-                imGuiRenderer.ImGui_ImplDX12_RenderDrawData(ImGui.GetDrawData(), graphicsState.commandList);
+                imGuiRenderer.ImGui_ImplDX12_RenderDrawData(ImGui.GetDrawData(), graphicsState.CommandList);
 
                 commandList.ResourceBarrier(new ResourceBarrier(new ResourceTransitionBarrier(
-                    graphicsState.renderTargets[frameIndex], ResourceStates.RenderTarget, ResourceStates.Common)));
+                    graphicsState.RenderTargets[frameIndex], ResourceStates.RenderTarget, ResourceStates.Common)));
 
                 commandList.Close();
-                graphicsState.commandQueue.ExecuteCommandList(commandList);
+                graphicsState.CommandQueue.ExecuteCommandList(commandList);
 
-                graphicsState.swapChain.Present(1);
+                graphicsState.SwapChain.Present(1);
 
                 graphicsState.EndFrameAndWait();
             }

@@ -12,8 +12,8 @@ namespace ImGuiBackend
 {
     internal struct ImGui_ImplDX12_RenderBuffers
     {
-        internal ID3D12Resource IndexBuffer;
-        internal ID3D12Resource VertexBuffer;
+        internal ID3D12Resource? IndexBuffer;
+        internal ID3D12Resource? VertexBuffer;
         internal int IndexBufferSize;
         internal int VertexBufferSize;
     };
@@ -86,14 +86,14 @@ namespace ImGuiBackend
             uint offset = 0;
             VertexBufferView vbv = new()
             {
-                BufferLocation = fr.VertexBuffer.GPUVirtualAddress + offset,
+                BufferLocation = fr.VertexBuffer!.GPUVirtualAddress + offset,
                 SizeInBytes = fr.VertexBufferSize * stride,
                 StrideInBytes = stride,
             };
             ctx.IASetVertexBuffers(0, vbv);
             IndexBufferView ibv = new()
             {
-                BufferLocation = fr.IndexBuffer.GPUVirtualAddress,
+                BufferLocation = fr.IndexBuffer!.GPUVirtualAddress,
                 SizeInBytes = fr.IndexBufferSize * SizeOf<ushort>(),
                 Format = SizeOf<ushort>() == 2 ? Format.R16_UInt : Format.R32_UInt,
             };

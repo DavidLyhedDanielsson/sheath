@@ -1,11 +1,9 @@
 using System.Diagnostics;
-using System.Runtime.CompilerServices;
-using Microsoft.Extensions.Logging;
 using Vortice.Direct3D12;
 
 namespace Application.Graphics;
 
-internal class Heap
+public class Heap
 {
     public required ID3D12Heap ID3D12Heap { get; init; }
     public required ulong Size { get; init; }
@@ -71,7 +69,7 @@ internal class Heap
     }
 }
 
-internal class DescriptorHeapSegment
+public class DescriptorHeapSegment
 {
     public required int Size { get; init; }
     public required CpuDescriptorHandle BaseHandle { get; init; }
@@ -85,7 +83,7 @@ internal class DescriptorHeapSegment
     }
 }
 
-internal class DescriptorHeap
+public class DescriptorHeap
 {
     public required ID3D12DescriptorHeap ID3D12DescriptorHeap { get; init; }
     public required int Size { get; init; }
@@ -130,18 +128,18 @@ internal class DescriptorHeap
 
 public class HeapState
 {
-    internal LinearUploader uploadBuffer; // TODO: Not a fan of this name
-    internal Heap uploadHeap;
-    internal Heap vertexHeap;
-    internal Heap indexHeap;
-    internal Heap textureHeap;
-    internal DescriptorHeap cbvUavSrvDescriptorHeap;
+    public required LinearUploader UploadBuffer { get; init; } // TODO: Not a fan of this name
+    public required Heap UploadHeap { get; init; }
+    public required Heap VertexHeap { get; init; }
+    public required Heap IndexHeap { get; init; }
+    public required Heap TextureHeap { get; init; }
+    public required DescriptorHeap CbvUavSrvDescriptorHeap { get; init; }
 
-    internal Heap instanceDataHeap;
-    internal ID3D12Resource instanceDataBuffer;
+    public required Heap InstanceDataHeap { get; init; }
+    public required ID3D12Resource InstanceDataBuffer { get; init; }
 
-    internal Heap perDrawConstantBufferHeap;
-    internal ID3D12Resource perDrawBuffer;
+    public required Heap PerDrawConstantBufferHeap { get; init; }
+    public required ID3D12Resource PerDrawBuffer { get; init; }
 
-    internal int surfaceCounter;
+    public int SurfaceCounter { get; set; }
 }

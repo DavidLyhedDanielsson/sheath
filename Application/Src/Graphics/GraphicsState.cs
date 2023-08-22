@@ -8,32 +8,33 @@ namespace Application.Graphics;
 
 public class GraphicsState
 {
-    public ID3D12Device device;
-    public ID3D12CommandQueue commandQueue;
-    public ID3D12CommandAllocator commandAllocator;
-    public ID3D12GraphicsCommandList commandList;
-    public ID3D12RootSignature rootSignature;
-    public ID3D12DescriptorHeap rtvDescriptorHeap;
-    public ID3D12DescriptorHeap dsvDescriptorHeap;
-    public ID3D12Resource[] renderTargets;
-    public ID3D12Resource depthBuffer;
-    public ID3D12Resource depthStencilView;
+#pragma warning disable CS8618 // Non-nullable field must contain a non-null value when exiting constructor. Consider declaring as nullable.
+    public ID3D12Device Device { get; private set; }
+    public ID3D12CommandQueue CommandQueue { get; private set; }
+    public ID3D12CommandAllocator CommandAllocator { get; private set; }
+    public ID3D12GraphicsCommandList CommandList { get; private set; }
+    public ID3D12RootSignature RootSignature { get; private set; }
+    public ID3D12DescriptorHeap RtvDescriptorHeap { get; private set; }
+    public ID3D12DescriptorHeap DsvDescriptorHeap { get; private set; }
+    public ID3D12Resource[] RenderTargets { get; private set; }
+    public ID3D12Resource DepthBuffer { get; private set; }
+    public ID3D12Resource DepthStencilView { get; private set; }
+    public IDXGISwapChain SwapChain { get; private set; }
 
-    public IDXGISwapChain swapChain;
+    private ID3D12Fence _fence;
+    private AutoResetEvent _fenceEvent;
 
-    ID3D12Fence fence;
-    AutoResetEvent fenceEvent;
-
-    ID3D12Fence frameFence;
-    AutoResetEvent frameFenceEvent;
+    private ID3D12Fence _frameFence;
+    private AutoResetEvent _frameFenceEvent;
 
     public ulong fenceCount;
-    public ulong frameCount;
+    public ulong frameCount = 0;
 
-    public int rtvDescriptorSize;
-    public int dsvDescriptorSize;
+    public int RtvDescriptorSize { get; private set; }
+    public int DsvDescriptorSize{ get; private set; }
 
-    public List<PSO> livePsos;
+    public List<PSO> livePsos = new();
+#pragma warning restore CS8618 // Non-nullable field must contain a non-null value when exiting constructor. Consider declaring as nullable.
 
     private static void DebugCallback(MessageCategory category, MessageSeverity severity, MessageId id, string description)
     {
@@ -44,8 +45,7 @@ public class GraphicsState
     {
         GraphicsState state = new GraphicsState();
 
-        state.renderTargets = new ID3D12Resource[settings.Graphics.BackBufferCount];
-        state.frameCount = 0;
+        state.RenderTargets = new ID3D12Resource[settings.Graphics.BackBufferCount];
 
         if (!D3D12.IsSupported(FeatureLevel.Level_12_1))
             return Result.Fail("Feature level 12.1 is not supported");
@@ -62,19 +62,23 @@ public class GraphicsState
         if (adapter == null)
             return Result.Fail("Couldn't find an adapter");
 
-        D3D12.D3D12CreateDevice(adapter, FeatureLevel.Level_12_1, out state.device);
-        if (state.device == null)
-            return Result.Fail("Couldn't create device");
+        {
 
-        ID3D12InfoQueue1 infoQueue = state.device.QueryInterface<ID3D12InfoQueue1>();
+            D3D12.D3D12CreateDevice(adapter, FeatureLevel.Level_12_1, out ID3D12Device? device);
+            if (device == null)
+                return Result.Fail("Couldn't create device");
+            state.Device = device;
+        }
+
+        ID3D12InfoQueue1 infoQueue = state.Device.QueryInterface<ID3D12InfoQueue1>();
         if (infoQueue != null)
             infoQueue!.RegisterMessageCallback(DebugCallback);
 
-        state.commandQueue = state.device.CreateCommandQueue(new CommandQueueDescription(CommandListType.Direct, CommandQueuePriority.Normal));
-        state.commandAllocator = state.device.CreateCommandAllocator(CommandListType.Direct);
-        state.commandList = state.device.CreateCommandList<ID3D12GraphicsCommandList>(CommandListType.Direct, state.commandAllocator);
+        state.CommandQueue = state.Device.CreateCommandQueue(new CommandQueueDescription(CommandListType.Direct, CommandQueuePriority.Normal));
+        state.CommandAllocator = state.Device.CreateCommandAllocator(CommandListType.Direct);
+        state.CommandList = state.Device.CreateCommandList<ID3D12GraphicsCommandList>(CommandListType.Direct, state.CommandAllocator);
 
-        state.swapChain = factory.CreateSwapChainForHwnd(state.commandQueue, hRef, new SwapChainDescription1
+        state.SwapChain = factory.CreateSwapChainForHwnd(state.CommandQueue, hRef, new SwapChainDescription1
         {
             Width = settings.Window.Width,
             Height = settings.Window.Height,
@@ -93,19 +97,19 @@ public class GraphicsState
             Flags = SwapChainFlags.None
         });
 
-        state.rtvDescriptorSize = state.device.GetDescriptorHandleIncrementSize(DescriptorHeapType.RenderTargetView);
-        state.rtvDescriptorHeap = state.device.CreateDescriptorHeap(new(DescriptorHeapType.RenderTargetView, settings.Graphics.BackBufferCount, DescriptorHeapFlags.None));
+        state.RtvDescriptorSize = state.Device.GetDescriptorHandleIncrementSize(DescriptorHeapType.RenderTargetView);
+        state.RtvDescriptorHeap = state.Device.CreateDescriptorHeap(new(DescriptorHeapType.RenderTargetView, settings.Graphics.BackBufferCount, DescriptorHeapFlags.None));
 
         for (int i = 0; i < settings.Graphics.BackBufferCount; ++i)
         {
-            state.renderTargets[i] = state.swapChain.GetBuffer<ID3D12Resource>(i);
-            state.device.CreateRenderTargetView(state.renderTargets[i], null, state.rtvDescriptorHeap.GetCPUDescriptorHandleForHeapStart() + i * state.rtvDescriptorSize);
+            state.RenderTargets[i] = state.SwapChain.GetBuffer<ID3D12Resource>(i);
+            state.Device.CreateRenderTargetView(state.RenderTargets[i], null, state.RtvDescriptorHeap.GetCPUDescriptorHandleForHeapStart() + i * state.RtvDescriptorSize);
         }
 
-        state.dsvDescriptorSize = state.device.GetDescriptorHandleIncrementSize(DescriptorHeapType.DepthStencilView);
-        state.dsvDescriptorHeap = state.device.CreateDescriptorHeap(new(DescriptorHeapType.DepthStencilView, 1, DescriptorHeapFlags.None));
+        state.DsvDescriptorSize = state.Device.GetDescriptorHandleIncrementSize(DescriptorHeapType.DepthStencilView);
+        state.DsvDescriptorHeap = state.Device.CreateDescriptorHeap(new(DescriptorHeapType.DepthStencilView, 1, DescriptorHeapFlags.None));
 
-        state.depthBuffer = state.device.CreateCommittedResource(
+        state.DepthBuffer = state.Device.CreateCommittedResource(
             HeapType.Default,
             ResourceDescription.Texture2D(
                 settings.Graphics.DepthStencilFormat,
@@ -126,7 +130,7 @@ public class GraphicsState
                     Stencil = 0
                 }
             });
-        state.device.CreateDepthStencilView(state.depthBuffer, new DepthStencilViewDescription
+        state.Device.CreateDepthStencilView(state.DepthBuffer, new DepthStencilViewDescription
         {
             Format = settings.Graphics.DepthStencilFormat,
             ViewDimension = DepthStencilViewDimension.Texture2D,
@@ -135,14 +139,15 @@ public class GraphicsState
             {
                 MipSlice = 0
             }
-        }, state.dsvDescriptorHeap.GetCPUDescriptorHandleForHeapStart());
+        }, state.DsvDescriptorHeap.GetCPUDescriptorHandleForHeapStart());
 
-        state.device.CreateRootSignature(new VersionedRootSignatureDescription
-        (
-            new RootSignatureDescription1
-            {
-                Flags = RootSignatureFlags.AllowInputAssemblerInputLayout,
-                Parameters = new[] {
+        {
+            state.Device.CreateRootSignature(new VersionedRootSignatureDescription
+            (
+                new RootSignatureDescription1
+                {
+                    Flags = RootSignatureFlags.AllowInputAssemblerInputLayout,
+                    Parameters = new[] {
                     new RootParameter1(RootParameterType.ConstantBufferView, new RootDescriptor1(HeapConfig.BaseRegister.modelData, HeapConfig.RegisterSpace.modelData, RootDescriptorFlags.None), ShaderVisibility.All),
                     new RootParameter1(
                         new RootDescriptorTable1(
@@ -155,8 +160,8 @@ public class GraphicsState
                             }
                         )
                     , ShaderVisibility.All)
-                },
-                StaticSamplers = new StaticSamplerDescription[] {
+                    },
+                    StaticSamplers = new StaticSamplerDescription[] {
                     new StaticSamplerDescription(
                         Filter.MinMagMipLinear
                         , TextureAddressMode.Mirror
@@ -172,15 +177,19 @@ public class GraphicsState
                         , HeapConfig.RegisterSpace.staticSamplers
                         , ShaderVisibility.Pixel
                     )
-                },
-            }
-        ), out state.rootSignature);
+                    },
+                }
+            ), out ID3D12RootSignature? rootSignature);
+            if (rootSignature == null)
+                return Result.Fail("Couldn't create root signature");
+            state.RootSignature = rootSignature;
+        }
 
-        state.frameFence = state.device.CreateFence();
-        state.frameFenceEvent = new AutoResetEvent(false);
+        state._frameFence = state.Device.CreateFence();
+        state._frameFenceEvent = new AutoResetEvent(false);
 
-        state.fence = state.device.CreateFence();
-        state.fenceEvent = new AutoResetEvent(false);
+        state._fence = state.Device.CreateFence();
+        state._fenceEvent = new AutoResetEvent(false);
 
         state.livePsos = new List<PSO>();
 
@@ -189,15 +198,15 @@ public class GraphicsState
 
     public void WaitUntilIdle()
     {
-        commandQueue.Signal(fence, ++fenceCount);
-        fence.SetEventOnCompletion(fenceCount, fenceEvent);
-        fenceEvent.WaitOne();
+        CommandQueue.Signal(_fence, ++fenceCount);
+        _fence.SetEventOnCompletion(fenceCount, _fenceEvent);
+        _fenceEvent.WaitOne();
     }
 
     public void EndFrameAndWait()
     {
-        commandQueue.Signal(frameFence, ++frameCount);
-        frameFence.SetEventOnCompletion(frameCount, frameFenceEvent);
-        frameFenceEvent.WaitOne();
+        CommandQueue.Signal(_frameFence, ++frameCount);
+        _frameFence.SetEventOnCompletion(frameCount, _frameFenceEvent);
+        _frameFenceEvent.WaitOne();
     }
 }
