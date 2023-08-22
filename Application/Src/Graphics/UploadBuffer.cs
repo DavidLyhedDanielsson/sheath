@@ -36,7 +36,7 @@ class TextureUploadTask : UploadTask
     }
 }
 
-class LinearUploader
+public class LinearUploader
 {
     private readonly ID3D12Resource _uploadBuffer;
     private readonly ulong _uploadBufferSize;

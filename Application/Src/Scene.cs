@@ -134,13 +134,13 @@ public class Scene
             _psoMapping.TryGetValue(psoId, out PSO? pso);
             Debug.Assert(pso != null);
 
-            graphicsState.commandList.SetPipelineState(pso.ID3D12PipelineState);
+            graphicsState.CommandList.SetPipelineState(pso.ID3D12PipelineState);
 
             foreach (SubmeshRef submeshRef in submeshReferences)
             {
                 Model.Submesh submesh = submeshRef.Model.Submeshes[submeshRef.Submesh];
 
-                graphicsState.commandList.IASetIndexBuffer(new IndexBufferView(submesh.VIBufferView.IndexBuffer.GPUVirtualAddress, submesh.VIBufferView.IndexBufferTotalCount * SizeOf(typeof(uint)), Vortice.DXGI.Format.R32_UInt));
+                graphicsState.CommandList.IASetIndexBuffer(new IndexBufferView(submesh.VIBufferView.IndexBuffer.GPUVirtualAddress, submesh.VIBufferView.IndexBufferTotalCount * SizeOf(typeof(uint)), Vortice.DXGI.Format.R32_UInt));
 
                 _instances.TryGetValue(submeshRef.Model, out List<InstanceData>? instanceData);
                 Debug.Assert(instanceData != null);
@@ -154,7 +154,7 @@ public class Scene
                     perDrawBuffer.Map(0, (void**)&data);
                     data += DrawCounter * 256;
 
-                    int textureId = submesh.Surface.AlbedoTexture.ID;
+                    int textureId = submesh.Surface.AlbedoTexture!.ID;
                     int vertexBufferId = submesh.VIBufferView.VertexBufferId;
                     int instanceDataStartOffset = InstanceCounter;
 
@@ -167,8 +167,8 @@ public class Scene
 
                 InstanceCounter += instanceData.Count;
 
-                graphicsState.commandList.SetGraphicsRootConstantBufferView(0, perDrawBuffer.GPUVirtualAddress + (ulong)(DrawCounter * 256));
-                graphicsState.commandList.DrawIndexedInstanced(submesh.VIBufferView.IndexCount, instanceData.Count, submesh.VIBufferView.IndexStart, 0, 0);
+                graphicsState.CommandList.SetGraphicsRootConstantBufferView(0, perDrawBuffer.GPUVirtualAddress + (ulong)(DrawCounter * 256));
+                graphicsState.CommandList.DrawIndexedInstanced(submesh.VIBufferView.IndexCount, instanceData.Count, submesh.VIBufferView.IndexStart, 0, 0);
 
                 DrawCounter += 1;
             }
