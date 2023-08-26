@@ -2,6 +2,8 @@
 using FluentResults;
 using System.Diagnostics;
 using System.Numerics;
+using System.Runtime.InteropServices;
+using System.Runtime.CompilerServices;
 
 namespace Application.Asset
 {
@@ -74,12 +76,34 @@ namespace Application.Asset
             }
         }
 
-        private static void LoadTexels(StbiImage image, byte[] texels, int texelChannelCount, Channel channelsToExtract, ChannelSwizzle channelSwizzle)
+        private unsafe static void LoadTexels(StbiImage image, byte[] texels, int texelChannelCount, Channel channelsToExtract, ChannelSwizzle channelSwizzle)
+        {
+            fixed (void* imageData = image.Data)
+            {
+                fixed (void* texelData = &texels[0])
+                {
+                    LoadTexels<byte>(imageData, image.NumChannels, image.Width, image.Height, texelData, texels.Length, texelChannelCount, channelsToExtract, channelSwizzle);
+                }
+            }
+        }
+
+        private unsafe static void LoadTexels(StbiImageF image, byte[] texels, int texelChannelCount, Channel channelsToExtract, ChannelSwizzle channelSwizzle)
+        {
+            fixed (void* imageData = image.Data)
+            {
+                fixed (void* texelData = &texels[0])
+                {
+                    LoadTexels<float>(imageData, image.NumChannels, image.Width, image.Height, texelData, texels.Length / 4, texelChannelCount, channelsToExtract, channelSwizzle);
+                }
+            }
+        }
+
+        private unsafe static void LoadTexels<TexelType>(void* imageData, int imageNumChannels, int imageWidth, int imageHeight, void* texels, int texelsLength, int texelChannelCount, Channel channelsToExtract, ChannelSwizzle channelSwizzle)
         {
             int numberOfChannelsToExtract = BitOperations.PopCount((uint)channelsToExtract);
 
-            Debug.Assert(image.NumChannels >= numberOfChannelsToExtract);
-            Debug.Assert(image.Width * image.Height * texelChannelCount == texels.Length);
+            Debug.Assert(imageNumChannels >= numberOfChannelsToExtract);
+            Debug.Assert(imageWidth * imageHeight * texelChannelCount == texelsLength);
 
             var extractMask = new bool[]
             {
@@ -90,14 +114,19 @@ namespace Application.Asset
             };
 
             //var texels = new byte[width * height * numberOfChannelsToExtract];
-            for (int texelI = 0; texelI < image.Width * image.Height; ++texelI)
+            for (int texelI = 0; texelI < imageWidth * imageHeight; ++texelI)
             {
                 for (int readChannel = 0; readChannel < 4; ++readChannel)
                 {
                     if (extractMask[readChannel])
                     {
                         int writeChannel = BitOperations.TrailingZeroCount((int)channelSwizzle[readChannel]);
-                        texels[texelI * texelChannelCount + writeChannel] = image.Data[texelI * image.NumChannels + readChannel];
+                        Buffer.MemoryCopy(
+                            (byte*)imageData + (texelI * imageNumChannels + readChannel),
+                            (byte*)texels + (texelI * texelChannelCount + writeChannel) * Marshal.SizeOf<TexelType>(),
+                            imageNumChannels * imageWidth * imageHeight * Marshal.SizeOf<TexelType>(),
+                            Marshal.SizeOf<TexelType>());
+                        //texels[texelI * texelChannelCount + writeChannel] = imageData[(texelI * imageNumChannels + readChannel) * Marshal.SizeOf<T>()];
                     }
                 }
             }
@@ -114,14 +143,16 @@ namespace Application.Asset
                     Stbi.InfoFromMemory(stream, out int width, out int height, out int channelCount);
                     StbiImage image = Stbi.LoadFromMemory(stream, 4);
 
-                    return Result.Ok(new TextureData()
+                    TextureData data = new TextureData()
                     {
                         Name = name,
-                        Texels = image.Data.ToArray(),
+                        Data = image.Data.ToArray(),
                         Width = image.Width,
                         Height = image.Height,
                         Channels = 4,
-                    });
+                        ChannelByteSize = 1,
+                    };
+                    return Result.Ok(data);
                 }
                 catch (ArgumentException ex)
                 {
@@ -175,14 +206,16 @@ namespace Application.Asset
                 }
             }
 
-            return Result.Ok(new TextureData()
+            TextureData data = new TextureData()
             {
                 Name = name,
-                Texels = texels,
+                Data = texels,
                 Width = width,
                 Height = height,
                 Channels = channelCount == -1 ? textures.Select(tup => BitOperations.PopCount((uint)tup.Item2)).Sum() : channelCount,
-            });
+                ChannelByteSize = 1,
+            };
+            return Result.Ok(data);
         }
 
         private static Result<TextureData> CreateTexture(string name, string texturePath, Channel channelsToExtract)
@@ -201,14 +234,54 @@ namespace Application.Asset
                     var texels = new byte[width * height * numberOfChannelsToExtract];
                     LoadTexels(image, texels, numberOfChannelsToExtract, channelsToExtract, ChannelSwizzle.Identity);
 
-                    return Result.Ok(new TextureData()
+                    TextureData data = new TextureData()
                     {
                         Name = name,
-                        Texels = texels,
+                        Data = texels,
                         Width = image.Width,
                         Height = image.Height,
                         Channels = numberOfChannelsToExtract,
-                    });
+                        ChannelByteSize = 1,
+                    };
+                    return Result.Ok(data);
+                }
+                catch (ArgumentException ex)
+                {
+                    return Result.Fail(ex.Message);
+                }
+            }
+        }
+
+        public static Result<TextureData> CreateCubeMap(string name, string texturePath)
+        {
+            if (Path.GetExtension(texturePath) != ".hdr")
+                return Result.Fail("Only .hdr files are supported");
+
+            using (var file = File.OpenRead(texturePath))
+            using (var stream = new MemoryStream())
+            {
+                try
+                {
+                    const int channelCount = 4;
+                    const int bytesPerChannel = 4;
+
+                    file.CopyTo(stream);
+                    Stbi.InfoFromMemory(stream, out int width, out int height, out _);
+                    StbiImageF image = Stbi.LoadFFromMemory(stream, channelCount);
+
+                    var texels = new byte[width * height * channelCount * bytesPerChannel];
+                    LoadTexels(image, texels, channelCount, Channel.R | Channel.G | Channel.B | Channel.A, ChannelSwizzle.Identity);
+
+                    TextureData data = new TextureData()
+                    {
+                        Name = name,
+                        Data = texels,
+                        Width = image.Width,
+                        Height = image.Height,
+                        Channels = channelCount,
+                        ChannelByteSize = bytesPerChannel,
+                    };
+                    return Result.Ok(data);
                 }
                 catch (ArgumentException ex)
                 {
