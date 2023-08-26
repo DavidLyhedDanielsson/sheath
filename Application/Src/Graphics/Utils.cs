@@ -199,17 +199,32 @@ public static class Utils
         return CompileShader(DxcShaderStage.Pixel, ShaderRootPath + "ps/" + name, defines);
     }
 
-    public static Format ChannelsToDXGIFormat(int channelCount)
+    public static Format GetDXGIFormat(int channelCount, int channelByteSize)
     {
+        Debug.Assert(channelByteSize == 1 || channelByteSize == 4);
         Debug.Assert(channelCount > 0 && channelCount != 3 && channelCount < 5);
 
-        return new Format[]
+        if (channelByteSize == 1)
         {
-            Format.Unknown,
-            Format.R8_UNorm,
-            Format.R8G8_UNorm,
-            Format.Unknown,
-            Format.R8G8B8A8_UNorm,
-        }[channelCount];
+            return new Format[]
+            {
+                Format.Unknown,
+                Format.R8_UNorm,
+                Format.R8G8_UNorm,
+                Format.Unknown,
+                Format.R8G8B8A8_UNorm,
+            }[channelCount];
+        }
+        else
+        {
+            return new Format[]
+            {
+                Format.Unknown,
+                Format.R32_Float,
+                Format.R32G32_Float,
+                Format.Unknown,
+                Format.R32G32B32A32_Float,
+            }[channelCount];
+        }
     }
 }

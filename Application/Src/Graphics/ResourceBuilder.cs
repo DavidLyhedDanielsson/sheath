@@ -111,14 +111,14 @@ public class LinearResourceBuilder : IResourceBuilder
     {
         ID3D12Resource resource = heapState.TextureHeap.AppendTexture2D(
             graphicsState.Device
-            , ResourceDescription.Texture2D(Utils.ChannelsToDXGIFormat(textureData.Channels), (uint)textureData.Width, (uint)textureData.Height, 1, 1)
+            , ResourceDescription.Texture2D(Utils.GetDXGIFormat(textureData.Channels, textureData.ChannelByteSize), (uint)textureData.Width, (uint)textureData.Height, 1, 1)
         );
 
         int textureId = heapState.CbvUavSrvDescriptorHeap.Segments[HeapConfig.Segments.textures].Used;
         graphicsState.Device.CreateShaderResourceView(resource,
             new ShaderResourceViewDescription
             {
-                Format = Utils.ChannelsToDXGIFormat(textureData.Channels),
+                Format = Utils.GetDXGIFormat(textureData.Channels, textureData.ChannelByteSize),
                 ViewDimension = ShaderResourceViewDimension.Texture2D,
                 Shader4ComponentMapping = ShaderComponentMapping.Default,
                 Texture2D = new Texture2DShaderResourceView
@@ -149,19 +149,19 @@ public class LinearResourceBuilder : IResourceBuilder
 
     public static void RecreatePsos(Settings settings, GraphicsState graphicsState, string? vertexShaderPath, string? pixelShaderPath)
     {
-        foreach(PSO pso in graphicsState.livePsos)
+        foreach (PSO pso in graphicsState.livePsos)
         {
             if (pso.VertexShader != vertexShaderPath && pso.PixelShader != pixelShaderPath)
                 continue;
 
             IDxcResult vertexShader;
-            if(vertexShaderPath != null)
+            if (vertexShaderPath != null)
                 vertexShader = Graphics.Utils.CompileVertexShader(vertexShaderPath).LogIfFailed().Value;
             else
                 vertexShader = Graphics.Utils.CompileVertexShader(pso.VertexShader).LogIfFailed().Value;
 
             IDxcResult pixelShader;
-            if(pixelShaderPath != null)
+            if (pixelShaderPath != null)
                 pixelShader = Graphics.Utils.CompilePixelShader(pixelShaderPath).LogIfFailed().Value;
             else
                 pixelShader = Graphics.Utils.CompilePixelShader(pso.PixelShader).LogIfFailed().Value;

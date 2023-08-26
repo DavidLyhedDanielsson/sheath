@@ -89,6 +89,8 @@ namespace Application
             Dictionary<string, Surface> surfaceNames = new();
             Dictionary<string, Mesh> meshNames = new();
 
+            TextureLoader.CreateCubeMap("cubemap", "Asset/kloofendal_43d_clear_4k.hdr");
+
             // Create bulb stuff
             {
                 Texture texture = LinearResourceBuilder.CreateTexture(graphicsState, heapState, TextureLoader.CreateTexture("Bulb", "Asset/Bulb.png").LogIfFailed().Value);

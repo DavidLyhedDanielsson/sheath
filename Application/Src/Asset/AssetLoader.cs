@@ -91,9 +91,9 @@ public class AssetLoader
                     texturePaths.Add(type, aiTexturePath.AsString);
                 }
 
-                string metalnessPath = texturePaths[Assimp.TextureType.Metalness];
-                string roughnessPath = texturePaths[Assimp.TextureType.DiffuseRoughness];
-                string occlusionPath = texturePaths[Assimp.TextureType.Lightmap];
+                string metalnessPath = Path.Combine(rootDir, texturePaths[Assimp.TextureType.Metalness]);
+                string roughnessPath = Path.Combine(rootDir, texturePaths[Assimp.TextureType.DiffuseRoughness]);
+                string occlusionPath = Path.Combine(rootDir, texturePaths[Assimp.TextureType.Lightmap]);
 
                 string materialName;
                 {
@@ -109,7 +109,7 @@ public class AssetLoader
                     Debugger.Break(); // TODO: Reminder to test :)
                     ormTexture = CreateTexture(ormTextureName, new[]
                     {
-                        (Path.Combine(rootDir, metalnessPath), Channel.R | Channel.G | Channel.B)
+                        (metalnessPath, Channel.R | Channel.G | Channel.B)
                     }).Value;
 
                 }
@@ -117,8 +117,8 @@ public class AssetLoader
                 {
                     ormTexture = CreateTexture(ormTextureName, new[]
                     {
-                        (Path.Combine(rootDir, occlusionPath), Channel.R, ChannelSwizzle.Identity),
-                        (Path.Combine(rootDir, metalnessPath), Channel.G | Channel.B, new ChannelSwizzle(G: Channel.G, B: Channel.B)),
+                        (occlusionPath, Channel.R, ChannelSwizzle.Identity),
+                        (metalnessPath, Channel.G | Channel.B, new ChannelSwizzle(G: Channel.G, B: Channel.B)),
                     }, 4).Value;
                 }
                 else
@@ -126,15 +126,15 @@ public class AssetLoader
                     Debugger.Break(); // TODO: Reminder to test :)
                     ormTexture = CreateTexture(ormTextureName, new[]
                     {
-                        (Path.Combine(rootDir, occlusionPath), Channel.R, ChannelSwizzle.Identity),
-                        (Path.Combine(rootDir, roughnessPath), Channel.G, new ChannelSwizzle(R: Channel.G)),
-                        (Path.Combine(rootDir, metalnessPath), Channel.B, new ChannelSwizzle(R: Channel.B)),
+                        (occlusionPath, Channel.R, ChannelSwizzle.Identity),
+                        (roughnessPath, Channel.G, new ChannelSwizzle(R: Channel.G)),
+                        (metalnessPath, Channel.B, new ChannelSwizzle(R: Channel.B)),
                     }, 4).Value;
                 }
 
                 catalogue.AddTexture(ormTexture);
-                catalogue.AddTexture(CreateTexture(materialName + "_Albedo", texturePaths[Assimp.TextureType.BaseColor]).Value);
-                catalogue.AddTexture(CreateTexture(materialName + "_Normal", texturePaths[Assimp.TextureType.Normals]).Value);
+                catalogue.AddTexture(CreateTexture(materialName + "_Albedo", Path.Combine(rootDir, texturePaths[Assimp.TextureType.BaseColor])).Value);
+                catalogue.AddTexture(CreateTexture(materialName + "_Normal", Path.Combine(rootDir, texturePaths[Assimp.TextureType.Normals])).Value);
             });
 
             AssimpForEach(scene->MNumMaterials, scene->MMaterials, (ref Assimp.Material material) => catalogue.AddMaterial(CreateMaterial(assimp, catalogue, ref material)));

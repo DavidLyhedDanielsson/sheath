@@ -76,12 +76,12 @@ public class LinearUploader
             _uploadBuffer.Map(0, (void**)&destination);
             for (ulong i = 0; i < (ulong)texture.Height; ++i)
             {
-                fixed (byte* textureCopyPtr = &texture.Texels[rowByteSize * i])
+                fixed (byte* textureCopyPtr = &texture.Data[rowByteSize * i])
                 {
-                    Buffer.MemoryCopy(textureCopyPtr, destination + offset, _uploadBufferSize - offset, rowByteSize);
+                    Buffer.MemoryCopy((void*)textureCopyPtr, destination + offset, _uploadBufferSize - offset, rowByteSize);
 
                     offset += rowByteSize;
-                }
+                };
             }
             _uploadBuffer.Unmap(0);
         }
@@ -91,7 +91,7 @@ public class LinearUploader
             TextureCopyLocation source = new(_uploadBuffer, new PlacedSubresourceFootPrint
             {
                 Offset = startOffset,
-                Footprint = new SubresourceFootPrint(Utils.ChannelsToDXGIFormat(texture.Channels), texture.Width, texture.Height, 1, checked((int)rowByteSize)),
+                Footprint = new SubresourceFootPrint(Utils.GetDXGIFormat(texture.Channels, texture.ChannelByteSize), texture.Width, texture.Height, 1, checked((int)rowByteSize)),
             });
 
             commandList.CopyTextureRegion(destination, 0, 0, 0, source);
