@@ -185,6 +185,9 @@
     </ItemGroup>
 
     <ItemGroup>
+      <None Update="Asset\kloofendal_43d_clear_4k.hdr">
+        <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+      </None>
       <None Update="Deps\SDL2.dll">
         <CopyToOutputDirectory>Never</CopyToOutputDirectory>
       </None>

@@ -134,6 +134,7 @@ public class HeapState
     public required Heap IndexHeap { get; init; }
     public required Heap TextureHeap { get; init; }
     public required DescriptorHeap CbvUavSrvDescriptorHeap { get; init; }
+    public required DescriptorHeap RtvDescriptorHeap { get; init; }
 
     public required Heap InstanceDataHeap { get; init; }
     public required ID3D12Resource InstanceDataBuffer { get; init; }

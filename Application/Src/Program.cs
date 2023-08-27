@@ -11,7 +11,6 @@ using Arch.Core;
 using System.Runtime.InteropServices;
 using static System.Runtime.InteropServices.Marshal;
 using Vortice.DXGI;
-using System.Reflection.Metadata.Ecma335;
 using System.Text.RegularExpressions;
 using System.Numerics;
 using Application.Graphics.shader;
@@ -89,7 +88,53 @@ namespace Application
             Dictionary<string, Surface> surfaceNames = new();
             Dictionary<string, Mesh> meshNames = new();
 
-            TextureLoader.CreateCubeMap("cubemap", "Asset/kloofendal_43d_clear_4k.hdr");
+            // TODO: Rename CreateCubeMap
+            TextureData cubeMap = TextureLoader.CreateCubeMap("cubemap", "Asset/kloofendal_43d_clear_4k.hdr").LogIfFailed().Value;
+            int[] cubeMapRtvIds = new int[6];
+            int[] cubeMapSrvIds = new int[6];
+            {
+                for (int i = 0; i < 6; ++i)
+                {
+                    ID3D12Resource resource = heapState.TextureHeap.AppendTexture2D(
+                        graphicsState.Device
+                        , ResourceDescription.Texture2D(Format.R16G16B16A16_UNorm, 1024, 1024, 1, 1, 1, 0, ResourceFlags.AllowRenderTarget)
+                        , ResourceStates.RenderTarget
+                    );
+
+                    cubeMapSrvIds[i] = heapState.CbvUavSrvDescriptorHeap.Segments[HeapConfig.Segments.textures].Used;
+                    graphicsState.Device.CreateShaderResourceView(resource,
+                        new ShaderResourceViewDescription
+                        {
+                            Format = Format.R16G16B16A16_UNorm,
+                            ViewDimension = ShaderResourceViewDimension.Texture2D,
+                            Shader4ComponentMapping = ShaderComponentMapping.Default,
+                            Texture2D = new Texture2DShaderResourceView
+                            {
+                                MostDetailedMip = 0,
+                                MipLevels = 1,
+                                PlaneSlice = 0,
+                                ResourceMinLODClamp = 0.0f,
+                            },
+                        },
+                        heapState.CbvUavSrvDescriptorHeap.Segments[HeapConfig.Segments.textures].NextCpuHandle()
+                    );
+
+                    cubeMapRtvIds[i] = heapState.RtvDescriptorHeap.Segments[0].Used;
+                    graphicsState.Device.CreateRenderTargetView(resource,
+                        new RenderTargetViewDescription
+                        {
+                            Format = Format.R16G16B16A16_UNorm,
+                            ViewDimension = RenderTargetViewDimension.Texture2D,
+                            Texture2D = new Texture2DRenderTargetView
+                            {
+                                MipSlice = 0,
+                                PlaneSlice = 0,
+                            }
+                        },
+                        heapState.RtvDescriptorHeap.Segments[0].NextCpuHandle()
+                    );
+                }
+            }
 
             // Create bulb stuff
             {
