@@ -493,22 +493,25 @@ public class LinearResourceBuilder : IResourceBuilder
 
     public static Result<HeapState> CreateHeapState(GraphicsState graphicsState)
     {
-        ID3D12DescriptorHeap id3d12DescriptorHeap = graphicsState.Device.CreateDescriptorHeap(
-            new DescriptorHeapDescription(
-                DescriptorHeapType.ConstantBufferViewShaderResourceViewUnorderedAccessView
-                , HeapConfig.ArraySize.total
-                , DescriptorHeapFlags.ShaderVisible
-            )
-        );
+        DescriptorHeap cbvSrvUavHeap;
+        {
+            ID3D12DescriptorHeap id3d12DescriptorHeap = graphicsState.Device.CreateDescriptorHeap(
+                new DescriptorHeapDescription(
+                    DescriptorHeapType.ConstantBufferViewShaderResourceViewUnorderedAccessView
+                    , HeapConfig.ArraySize.total
+                    , DescriptorHeapFlags.ShaderVisible
+                )
+            );
 
-        int handleSize = graphicsState.Device.GetDescriptorHandleIncrementSize(DescriptorHeapType.ConstantBufferViewShaderResourceViewUnorderedAccessView);
-        var descriptorHeap = new DescriptorHeap.Builder(id3d12DescriptorHeap, handleSize)
-            .WithSegment(HeapConfig.ArraySize.cbvs)
-            .WithSegment(HeapConfig.ArraySize.textures)
-            .WithSegment(HeapConfig.ArraySize.vertexBuffers)
-            .WithSegment(HeapConfig.ArraySize.surfaces)
-            .WithSegment(HeapConfig.ArraySize.instanceDatas)
-            .Build();
+            int handleSize = graphicsState.Device.GetDescriptorHandleIncrementSize(DescriptorHeapType.ConstantBufferViewShaderResourceViewUnorderedAccessView);
+            cbvSrvUavHeap = new DescriptorHeap.Builder(id3d12DescriptorHeap, handleSize)
+                .WithSegment(HeapConfig.ArraySize.cbvs)
+                .WithSegment(HeapConfig.ArraySize.textures)
+                .WithSegment(HeapConfig.ArraySize.vertexBuffers)
+                .WithSegment(HeapConfig.ArraySize.surfaces)
+                .WithSegment(HeapConfig.ArraySize.instanceDatas)
+                .Build();
+        }
 
         const int uploadHeapSize = 256 * 1024 * 1024;
         ID3D12Heap uploadHeap =
@@ -576,7 +579,7 @@ public class LinearResourceBuilder : IResourceBuilder
                         StructureByteStride = 4 * 4,
                         Flags = BufferShaderResourceViewFlags.None,
                     }
-                }, descriptorHeap.Segments[HeapConfig.Segments.instanceDatas].NextCpuHandle());
+                }, cbvSrvUavHeap.Segments[HeapConfig.Segments.instanceDatas].NextCpuHandle());
         }
 
         Heap perDrawConstantBufferHeap;
@@ -612,6 +615,22 @@ public class LinearResourceBuilder : IResourceBuilder
                 }, descriptorHeap.Segments[HeapConfig.Segments.instanceDatas].NextCpuHandle());*/
         }
 
+        DescriptorHeap rtvHeap;
+        {
+            // Environment cube map
+            ID3D12DescriptorHeap id3d12DescriptorHeap = graphicsState.Device.CreateDescriptorHeap(
+                new DescriptorHeapDescription(
+                    DescriptorHeapType.RenderTargetView
+                    , 6
+                    , DescriptorHeapFlags.None
+                )
+            );
+
+            int handleSize = graphicsState.Device.GetDescriptorHandleIncrementSize(DescriptorHeapType.RenderTargetView);
+            rtvHeap = new DescriptorHeap.Builder(id3d12DescriptorHeap, handleSize)
+                .WithSegment(6)
+                .Build();
+        }
 
         return new HeapState
         {
@@ -620,7 +639,8 @@ public class LinearResourceBuilder : IResourceBuilder
             VertexHeap = vertexHeap,
             IndexHeap = indexHeap,
             TextureHeap = textureHeap,
-            CbvUavSrvDescriptorHeap = descriptorHeap,
+            CbvUavSrvDescriptorHeap = cbvSrvUavHeap,
+            RtvDescriptorHeap = rtvHeap,
             InstanceDataHeap = instanceDataHeap,
             InstanceDataBuffer = instanceDataBuffer,
             PerDrawConstantBufferHeap = perDrawConstantBufferHeap,

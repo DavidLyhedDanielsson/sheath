@@ -10,7 +10,7 @@ namespace Application.Graphics;
 
 public static class Utils
 {
-    #if DEBUG
+#if DEBUG
     public const string ShaderRootPath = "../../../Src/Graphics/shader/";
 #else
     public const Path ShaderRootPath = "Src/Graphics/shader";
@@ -37,7 +37,7 @@ public static class Utils
         {
             bool TextInSpan(byte[] source, int offset, string text)
             {
-                for(int i = offset; i < source.Length && i - offset < text.Length; ++i)
+                for (int i = offset; i < source.Length && i - offset < text.Length; ++i)
                 {
                     if (source[i] != text[i - offset])
                         return false;
@@ -66,10 +66,10 @@ public static class Utils
 
             for (int i = 0; i < text.Length; ++i)
             {
-                if(TextInSpan(text, i, "#region"))
+                if (TextInSpan(text, i, "#region"))
                     ReplaceUntil(text, i, "#endregion");
 
-                if(TextInSpan(text, i, "#if !HLSL"))
+                if (TextInSpan(text, i, "#if !HLSL"))
                     ReplaceUntil(text, i, "#endif");
             }
         }
