@@ -95,7 +95,7 @@ public class Settings
         }
         public void ValidateAndCorrect() { }
     }
-    public StateS State { get; set; } 
+    public StateS State { get; set; }
 
     public Settings()
     {

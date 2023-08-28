@@ -310,7 +310,7 @@ namespace Application
                             if (ImGui.GetIO().WantCaptureMouse)
                                 break;
 
-                            if(dragging)
+                            if (dragging)
                             {
                                 camera.Pitch(ev.motion.yrel * -0.001f);
                                 camera.Yaw(ev.motion.xrel * -0.001f);
@@ -526,7 +526,7 @@ namespace Application
                     ImGui.DragFloat3("Light position", ref *(Vector3*)&lightPosition, 0.001f);
 
                     Vector3 cPos = viewPosition.ToSystem();
-                    if(ImGui.DragFloat3("Camera position", ref cPos, 0.001f))
+                    if (ImGui.DragFloat3("Camera position", ref cPos, 0.001f))
                     {
                         var viewDir = Vector3.Normalize(cPos);
 
