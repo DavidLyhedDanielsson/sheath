@@ -137,13 +137,6 @@ public class LinearResourceBuilder : IResourceBuilder
             heapState.UploadBuffer.QueueTextureUpload(graphicsState.CommandList, resource, textureData);
         }
 
-        // TODO: Can't be here if the data is queued for copying
-        graphicsState.CommandList.ResourceBarrierTransition(
-            resource
-            , ResourceStates.CopyDest
-            , ResourceStates.AllShaderResource
-        );
-
         return new Texture { ID = textureId };
     }
 

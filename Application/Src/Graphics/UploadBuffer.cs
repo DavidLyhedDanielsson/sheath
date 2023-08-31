@@ -68,8 +68,7 @@ public class LinearUploader
         var offset = _currentOffset;
         var startOffset = offset;
 
-        ulong alignment = D3D12.TextureDataPitchAlignment;
-        ulong rowByteSize = ((ulong)texture.Width * 4 + alignment - 1) / alignment * alignment;
+        ulong rowByteSize = CalcRowByteSize(texture);
 
         {
             byte* destination;
@@ -96,6 +95,12 @@ public class LinearUploader
 
             commandList.CopyTextureRegion(destination, 0, 0, 0, source);
         }
+
+        commandList.ResourceBarrierTransition(
+            target
+            , ResourceStates.CopyDest
+            , ResourceStates.AllShaderResource
+        );
 
         return offset;
     }
@@ -124,12 +129,16 @@ public class LinearUploader
         _currentOffset = DoBufferUpload(commandList, targetResource, targetOffset, data, dataLength);
     }
 
+    private ulong CalcRowByteSize(TextureData texture)
+    {
+        const ulong alignment = D3D12.TextureDataPitchAlignment;
+        ulong rowByteSize = ((ulong)texture.Width * (ulong)texture.ChannelByteSize * (ulong)texture.Channels + alignment - 1) / alignment * alignment;
+        return rowByteSize;
+    }
+
     public unsafe void QueueTextureUpload(ID3D12GraphicsCommandList commandList, ID3D12Resource targetResource, TextureData texture)
     {
-        ulong alignment = D3D12.TextureDataPitchAlignment;
-        ulong rowByteSize = ((ulong)texture.Width * 4 + alignment - 1) / alignment * alignment;
-
-        var dataLength = rowByteSize * (ulong)texture.Height;
+        var dataLength = CalcRowByteSize(texture) * (ulong)texture.Height;
 
         Debug.Assert(dataLength <= _uploadBufferSize);
 
@@ -183,8 +192,7 @@ public class LinearUploader
             {
                 var (targetResource, texture) = textureTask;
 
-                ulong alignment = D3D12.TextureDataPitchAlignment;
-                ulong rowByteSize = ((ulong)texture.Width * 4 + alignment - 1) / alignment * alignment;
+                ulong rowByteSize = CalcRowByteSize(texture);
                 ulong totalByteSize = rowByteSize * (ulong)texture.Height;
 
                 if (_currentOffset + totalByteSize <= _uploadBufferSize)
