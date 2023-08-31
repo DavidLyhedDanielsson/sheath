@@ -54,7 +54,7 @@ namespace Application.Asset
                         Channel.R => R,
                         Channel.G => G,
                         Channel.B => B,
-                        Channel.A => R,
+                        Channel.A => A,
                         _ => throw new Exception("Stop it")
                     };
                 }
@@ -69,7 +69,7 @@ namespace Application.Asset
                         0 => R,
                         1 => G,
                         2 => B,
-                        3 => R,
+                        3 => A,
                         _ => throw new Exception("Stop it")
                     };
                 }
@@ -122,7 +122,7 @@ namespace Application.Asset
                     {
                         int writeChannel = BitOperations.TrailingZeroCount((int)channelSwizzle[readChannel]);
                         Buffer.MemoryCopy(
-                            (byte*)imageData + (texelI * imageNumChannels + readChannel),
+                            (byte*)imageData + (texelI * imageNumChannels + readChannel) * Marshal.SizeOf<TexelType>(),
                             (byte*)texels + (texelI * texelChannelCount + writeChannel) * Marshal.SizeOf<TexelType>(),
                             imageNumChannels * imageWidth * imageHeight * Marshal.SizeOf<TexelType>(),
                             Marshal.SizeOf<TexelType>());
