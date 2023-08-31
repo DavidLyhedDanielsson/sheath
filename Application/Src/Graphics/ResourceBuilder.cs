@@ -419,6 +419,76 @@ public class LinearResourceBuilder : IResourceBuilder
             ORMTexture = ormTexture,
         };
     }
+
+    public static Surface CreateCubemapSurface(Settings settings, GraphicsState graphicsState, HeapState heapState, Texture texture)
+    {
+        var vertexShader = Graphics.Utils.CompileVertexShader("cubemap.hlsl").LogIfFailed().Value;
+        var pixelShader = Graphics.Utils.CompilePixelShader("cubemap.hlsl").LogIfFailed().Value;
+
+        var rasterizerDescription = new RasterizerDescription
+        {
+            FillMode = FillMode.Solid,
+            CullMode = CullMode.None,
+            FrontCounterClockwise = true,
+            DepthBias = 0,
+            DepthBiasClamp = 0,
+            SlopeScaledDepthBias = 0,
+            DepthClipEnable = false,
+            MultisampleEnable = false,
+            AntialiasedLineEnable = false,
+            ForcedSampleCount = 0,
+            ConservativeRaster = ConservativeRasterizationMode.Off
+        };
+
+        var pipelineState = graphicsState.Device.CreateGraphicsPipelineState(new GraphicsPipelineStateDescription
+        {
+            RootSignature = graphicsState.RootSignature,
+            VertexShader = vertexShader.GetObjectBytecodeMemory(),
+            PixelShader = pixelShader.GetObjectBytecodeMemory(),
+            DomainShader = null,
+            HullShader = null,
+            GeometryShader = null,
+            StreamOutput = null,
+            BlendState = BlendDescription.Opaque,
+            SampleMask = uint.MaxValue,
+            RasterizerState = rasterizerDescription,
+            DepthStencilState = DepthStencilDescription.ReverseZ,
+            InputLayout = null,
+            IndexBufferStripCutValue = IndexBufferStripCutValue.Disabled,
+            PrimitiveTopologyType = PrimitiveTopologyType.Triangle,
+            RenderTargetFormats = new Format[]
+            {
+                settings.Graphics.BackBufferFormat,
+            },
+            DepthStencilFormat = settings.Graphics.DepthStencilFormat,
+            SampleDescription = SampleDescription.Default,
+            NodeMask = 0,
+            CachedPSO = default,
+            Flags = PipelineStateFlags.None
+        });
+
+        PSO pso = new PSO
+        {
+            VertexShader = "cubemap.hlsl",
+            PixelShader = "cubemap.hlsl",
+            BackfaceCulling = false,
+            ID = 5, // TODO :)
+            RasterizerDescription = rasterizerDescription,
+            ID3D12PipelineState = pipelineState,
+        };
+
+        graphicsState.livePsos.Add(pso);
+
+        return new Surface
+        {
+            ID = heapState.SurfaceCounter++,
+            PSO = pso,
+            AlbedoTexture = texture,
+            NormalTexture = null,
+            ORMTexture = null,
+        };
+    }
+
     public static Surface CreateTerrainSurface(Settings settings, GraphicsState graphicsState, HeapState heapState)
     {
         var vertexShader = Graphics.Utils.CompileVertexShader("terrain.hlsl").LogIfFailed().Value;

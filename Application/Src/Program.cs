@@ -88,8 +88,52 @@ namespace Application
             Dictionary<string, Surface> surfaceNames = new();
             Dictionary<string, Mesh> meshNames = new();
 
+            Mesh cubeMesh = LinearResourceBuilder.CreateMesh(graphicsState, heapState, new VertexData
+            {
+                Name = "UnitCube",
+                Submeshes = new[] { new Submesh { Indices = new uint[] {
+                    // Top
+                    0, 1, 2,
+                    2, 3, 0,
+                    // Bottom
+                    4, 5, 6,
+                    6, 7, 4,
+                    // Front
+                    1, 5, 6,
+                    6, 2, 1,
+                    // Back
+                    0, 3, 4,
+                    4, 3, 7,
+                    // Left
+                    0, 4, 1,
+                    4, 5, 1,
+                    // Right
+                    2, 6, 7,
+                    7, 3, 2
+                } } },
+                Vertices = new[] {
+                    new Vector3D<float>(-1.0f, 1.0f, 1.0f),
+                    new Vector3D<float>(-1.0f, 1.0f, -1.0f),
+                    new Vector3D<float>(1.0f, 1.0f, -1.0f),
+                    new Vector3D<float>(1.0f, 1.0f, 1.0f),
+                    new Vector3D<float>(-1.0f, -1.0f, 1.0f),
+                    new Vector3D<float>(-1.0f, -1.0f, -1.0f),
+                    new Vector3D<float>(1.0f, -1.0f, -1.0f),
+                    new Vector3D<float>(1.0f, -1.0f, 1.0f),
+                }.Select(pos => new Vertex
+                {
+                    Position = pos,
+                    Normal = Vector3D<float>.Zero,
+                    Tangent = Vector3D<float>.Zero,
+                    TextureCoordinates = Vector2D<float>.Zero,
+                }).ToArray(),
+            });
+
             // TODO: Rename CreateCubeMap
             TextureData cubeMap = TextureLoader.CreateCubeMap("cubemap", "Asset/kloofendal_43d_clear_4k.hdr").LogIfFailed().Value;
+            Texture cubeMapTexture = LinearResourceBuilder.CreateTexture(graphicsState, heapState, cubeMap);
+            Surface cubeMapSurface = LinearResourceBuilder.CreateCubemapSurface(settings, graphicsState, heapState, cubeMapTexture);
+
             int[] cubeMapRtvIds = new int[6];
             int[] cubeMapSrvIds = new int[6];
             {
@@ -271,30 +315,39 @@ namespace Application
             );*/
 
             // Reload shaders
-            List<RenamedEventArgs> reloadFiles = new();
+            List<(string fullPath, string name)> reloadFiles = new();
 
             // VS saves a file to a tmp, renames old file to tmp, then renames the first tmp to the file name
             using var vsWatcher = new FileSystemWatcher(Utils.ShaderRootPath + "/vs");
-            vsWatcher.NotifyFilter = NotifyFilters.FileName;
+            vsWatcher.NotifyFilter = NotifyFilters.FileName | NotifyFilters.LastWrite;
             vsWatcher.Filter = "*.hlsl";
+            vsWatcher.IncludeSubdirectories = true;
             vsWatcher.Renamed += (object sender, RenamedEventArgs args) =>
             {
                 if (args.Name!.EndsWith(".TMP"))
                     return;
-
-                reloadFiles.Add(args);
+                reloadFiles.Add((args.FullPath, args.Name));
+            };
+            vsWatcher.Changed += (object sender, FileSystemEventArgs args) =>
+            {
+                reloadFiles.Add((args.FullPath, args.Name!));
             };
             vsWatcher.EnableRaisingEvents = true;
 
+            var abc = Path.GetFullPath(Utils.ShaderRootPath + "/ps");
             using var psWatcher = new FileSystemWatcher(Utils.ShaderRootPath + "/ps");
-            psWatcher.NotifyFilter = NotifyFilters.FileName;
+            psWatcher.NotifyFilter = NotifyFilters.FileName | NotifyFilters.LastWrite | NotifyFilters.Attributes;
             psWatcher.Filter = "*.hlsl";
+            vsWatcher.IncludeSubdirectories = true;
             psWatcher.Renamed += (object sender, RenamedEventArgs args) =>
             {
                 if (args.Name!.EndsWith(".TMP"))
                     return;
-
-                reloadFiles.Add(args);
+                reloadFiles.Add((args.FullPath, args.Name));
+            };
+            psWatcher.Changed += (object sender, FileSystemEventArgs args) =>
+            {
+                reloadFiles.Add((args.FullPath, args.Name!));
             };
             psWatcher.EnableRaisingEvents = true;
 
@@ -307,14 +360,14 @@ namespace Application
                 // Reload shaders
                 for (int i = reloadFiles.Count - 1; i >= 0; --i)
                 {
-                    RenamedEventArgs reloadArgs = reloadFiles[i];
+                    (string fullPath, string name) = reloadFiles[i];
 
                     try
                     {
-                        if (Regex.IsMatch(reloadArgs.FullPath, @"[/\\]ps[/\\]"))
-                            LinearResourceBuilder.RecreatePsos(settings, graphicsState, null, reloadArgs.Name);
-                        else if (Regex.IsMatch(reloadArgs.FullPath, @"[/\\]vs[/\\]"))
-                            LinearResourceBuilder.RecreatePsos(settings, graphicsState, reloadArgs.Name, null);
+                        if (Regex.IsMatch(fullPath, @"[/\\]ps[/\\]"))
+                            LinearResourceBuilder.RecreatePsos(settings, graphicsState, null, name);
+                        else if (Regex.IsMatch(fullPath, @"[/\\]vs[/\\]"))
+                            LinearResourceBuilder.RecreatePsos(settings, graphicsState, name, null);
 
                         reloadFiles.RemoveAt(i);
                     }
@@ -534,12 +587,7 @@ namespace Application
 
                 //scene.Render(graphicsState, heapState.instanceDataBuffer, heapState.perDrawBuffer);
 
-                commandList.RSSetViewport(0.0f, 0.0f, settings.Window.Width, settings.Window.Height);
-                commandList.RSSetScissorRect(settings.Window.Width, settings.Window.Height);
-                commandList.IASetPrimitiveTopology(Vortice.Direct3D.PrimitiveTopology.TriangleList);
-                commandList.SetGraphicsRootSignature(graphicsState.RootSignature);
-                commandList.SetDescriptorHeaps(heapState.CbvUavSrvDescriptorHeap.ID3D12DescriptorHeap);
-                commandList.SetGraphicsRootDescriptorTable(1, heapState.CbvUavSrvDescriptorHeap.ID3D12DescriptorHeap.GetGPUDescriptorHandleForHeapStart());
+                // Render bulbs
                 graphicsState.CommandList.SetPipelineState(bulbSurface.PSO.ID3D12PipelineState);
                 unsafe
                 {
@@ -562,6 +610,32 @@ namespace Application
                 }
                 graphicsState.CommandList.SetGraphicsRootConstantBufferView(0, heapState.PerDrawBuffer.GPUVirtualAddress + (ulong)(drawOffset * 256));
                 graphicsState.CommandList.DrawInstanced(6, 1, 0, 0);
+                drawOffset++;
+
+                // Render cubemap
+                graphicsState.CommandList.SetPipelineState(cubeMapSurface.PSO.ID3D12PipelineState);
+                unsafe
+                {
+                    byte* data;
+                    heapState.PerDrawBuffer.Map(0, (void**)&data);
+                    data += drawOffset * 256;
+
+                    Debug.Assert(SizeOf<ModelData>() <= 256);
+                    ModelData modelData = new()
+                    {
+                        AlbedoTextureId = cubeMapSurface.AlbedoTexture!.ID,
+                        NormalTextureId = -1,
+                        OrmTextureId = -1,
+                        VertexBufferId = cubeMesh.BufferViews[0].VertexBufferId,
+                        InstanceStartOffset = -1
+                    };
+                    Buffer.MemoryCopy(&modelData, data, 256, SizeOf<ModelData>());
+
+                    heapState.PerDrawBuffer.Unmap(0);
+                }
+                graphicsState.CommandList.IASetIndexBuffer(new IndexBufferView(cubeMesh.BufferViews[0].IndexBuffer.GPUVirtualAddress, cubeMesh.BufferViews[0].IndexBufferTotalCount * SizeOf(typeof(uint)), Format.R32_UInt));
+                graphicsState.CommandList.SetGraphicsRootConstantBufferView(0, heapState.PerDrawBuffer.GPUVirtualAddress + (ulong)(drawOffset * 256));
+                graphicsState.CommandList.DrawIndexedInstanced(cubeMesh.BufferViews[0].IndexCount, 1, cubeMesh.BufferViews[0].IndexStart, 0, 0);
                 drawOffset++;
 
 

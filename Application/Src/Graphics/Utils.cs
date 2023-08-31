@@ -5,13 +5,14 @@ using System.Diagnostics;
 using SharpGen.Runtime;
 using System.Runtime.InteropServices;
 using System.Diagnostics.Tracing;
+using SDL2;
 
 namespace Application.Graphics;
 
 public static class Utils
 {
 #if DEBUG
-    public const string ShaderRootPath = "../../../Src/Graphics/shader/";
+    public const string ShaderRootPath = "../../../Src/Graphics/shader";
 #else
     public const Path ShaderRootPath = "Src/Graphics/shader";
 #endif
@@ -181,22 +182,22 @@ public static class Utils
 
     public static Result<IDxcResult> CompileVertexShader(string name)
     {
-        return CompileShader(DxcShaderStage.Vertex, ShaderRootPath + "vs/" + name);
+        return CompileShader(DxcShaderStage.Vertex, ShaderRootPath + "/vs/" + name);
     }
 
     public static Result<IDxcResult> CompileVertexShader(string name, KeyValuePair<string, string>[] defines)
     {
-        return CompileShader(DxcShaderStage.Vertex, ShaderRootPath + "vs/", defines);
+        return CompileShader(DxcShaderStage.Vertex, ShaderRootPath + "/vs/", defines);
     }
 
     public static Result<IDxcResult> CompilePixelShader(string name)
     {
-        return CompileShader(DxcShaderStage.Pixel, ShaderRootPath + "ps/" + name);
+        return CompileShader(DxcShaderStage.Pixel, ShaderRootPath + "/ps/" + name);
     }
 
     public static Result<IDxcResult> CompilePixelShader(string name, KeyValuePair<string, string>[] defines)
     {
-        return CompileShader(DxcShaderStage.Pixel, ShaderRootPath + "ps/" + name, defines);
+        return CompileShader(DxcShaderStage.Pixel, ShaderRootPath + "/ps/" + name, defines);
     }
 
     public static Format GetDXGIFormat(int channelCount, int channelByteSize)
