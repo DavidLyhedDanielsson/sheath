@@ -38,6 +38,8 @@ namespace Application
 
         static int Main(string[] args)
         {
+            HashSet<IDisposable> disposables = new();
+
             var logger = new MyConsoleLogger();
             FluentResults.Result.Setup(cfg => { cfg.Logger = logger; });
 
@@ -68,12 +70,14 @@ namespace Application
                 return -2;
             GraphicsState graphicsState = graphicsStateResult.Value;
 
+            // Init ImGui
+            ImGuiBackend.Renderer imGuiRenderer = new();
             ImGui.CreateContext();
             ImGui.StyleColorsDark();
-            ImGuiBackend.Renderer imGuiRenderer = new();
             var imGuiDescHeap = graphicsState.Device.CreateDescriptorHeap(new(DescriptorHeapType.ConstantBufferViewShaderResourceViewUnorderedAccessView, 1, DescriptorHeapFlags.ShaderVisible));
+            imGuiDescHeap.Name = "ImGui Descriptor Heap";
+            disposables.Add(imGuiDescHeap);
             imGuiRenderer.ImGui_ImplDX12_Init(graphicsState.Device, settings.Graphics.BackBufferCount, settings.Graphics.BackBufferFormat, imGuiDescHeap.GetCPUDescriptorHandleForHeapStart(), imGuiDescHeap.GetGPUDescriptorHandleForHeapStart());
-
             ImGuiBackend.SdlBackend imGuiSdlBackend = new(sdlWindow);
 
             Showroom showroom = new();
@@ -82,6 +86,7 @@ namespace Application
             if (heapResult.IsFailed)
                 return -3;
             var heapState = heapResult.Value;
+            disposables.Add(heapState);
 
             // TODO: these should live somewhere
             Dictionary<string, Texture> textureNames = new();
@@ -137,47 +142,47 @@ namespace Application
             int[] cubeMapRtvIds = new int[6];
             int[] cubeMapSrvIds = new int[6];
             {
-                for (int i = 0; i < 6; ++i)
-                {
-                    ID3D12Resource resource = heapState.TextureHeap.AppendTexture2D(
-                        graphicsState.Device
-                        , ResourceDescription.Texture2D(Format.R16G16B16A16_UNorm, 1024, 1024, 1, 1, 1, 0, ResourceFlags.AllowRenderTarget)
-                        , ResourceStates.RenderTarget
-                    );
+                // for (int i = 0; i < 6; ++i)
+                // {
+                //     ID3D12Resource resource = heapState.TextureHeap.AppendTexture2D(
+                //         graphicsState.Device
+                //         , ResourceDescription.Texture2D(Format.R16G16B16A16_UNorm, 1024, 1024, 1, 1, 1, 0, ResourceFlags.AllowRenderTarget)
+                //         , ResourceStates.RenderTarget
+                //     );
 
-                    cubeMapSrvIds[i] = heapState.CbvUavSrvDescriptorHeap.Segments[HeapConfig.Segments.textures].Used;
-                    graphicsState.Device.CreateShaderResourceView(resource,
-                        new ShaderResourceViewDescription
-                        {
-                            Format = Format.R16G16B16A16_UNorm,
-                            ViewDimension = ShaderResourceViewDimension.Texture2D,
-                            Shader4ComponentMapping = ShaderComponentMapping.Default,
-                            Texture2D = new Texture2DShaderResourceView
-                            {
-                                MostDetailedMip = 0,
-                                MipLevels = 1,
-                                PlaneSlice = 0,
-                                ResourceMinLODClamp = 0.0f,
-                            },
-                        },
-                        heapState.CbvUavSrvDescriptorHeap.Segments[HeapConfig.Segments.textures].NextCpuHandle()
-                    );
+                //     cubeMapSrvIds[i] = heapState.CbvUavSrvDescriptorHeap.Segments[HeapConfig.Segments.textures].Used;
+                //     graphicsState.Device.CreateShaderResourceView(resource,
+                //         new ShaderResourceViewDescription
+                //         {
+                //             Format = Format.R16G16B16A16_UNorm,
+                //             ViewDimension = ShaderResourceViewDimension.Texture2D,
+                //             Shader4ComponentMapping = ShaderComponentMapping.Default,
+                //             Texture2D = new Texture2DShaderResourceView
+                //             {
+                //                 MostDetailedMip = 0,
+                //                 MipLevels = 1,
+                //                 PlaneSlice = 0,
+                //                 ResourceMinLODClamp = 0.0f,
+                //             },
+                //         },
+                //         heapState.CbvUavSrvDescriptorHeap.Segments[HeapConfig.Segments.textures].NextCpuHandle()
+                //     );
 
-                    cubeMapRtvIds[i] = heapState.RtvDescriptorHeap.Segments[0].Used;
-                    graphicsState.Device.CreateRenderTargetView(resource,
-                        new RenderTargetViewDescription
-                        {
-                            Format = Format.R16G16B16A16_UNorm,
-                            ViewDimension = RenderTargetViewDimension.Texture2D,
-                            Texture2D = new Texture2DRenderTargetView
-                            {
-                                MipSlice = 0,
-                                PlaneSlice = 0,
-                            }
-                        },
-                        heapState.RtvDescriptorHeap.Segments[0].NextCpuHandle()
-                    );
-                }
+                //     cubeMapRtvIds[i] = heapState.RtvDescriptorHeap.Segments[0].Used;
+                //     graphicsState.Device.CreateRenderTargetView(resource,
+                //         new RenderTargetViewDescription
+                //         {
+                //             Format = Format.R16G16B16A16_UNorm,
+                //             ViewDimension = RenderTargetViewDimension.Texture2D,
+                //             Texture2D = new Texture2DRenderTargetView
+                //             {
+                //                 MipSlice = 0,
+                //                 PlaneSlice = 0,
+                //             }
+                //         },
+                //         heapState.RtvDescriptorHeap.Segments[0].NextCpuHandle()
+                //     );
+                // }
             }
 
             // Create bulb stuff
@@ -273,14 +278,14 @@ namespace Application
             //scene.AddInstance(.Model, new InstanceData { transform = Matrix4X4<float>.Identity });
             //var bounds = scene.GetBounds();
 
-            ID3D12Resource cameraBuffer = graphicsState.Device.CreateCommittedResource(HeapType.Upload,
-                ResourceDescription.Buffer(1024), ResourceStates.AllShaderResource);
+            ID3D12Resource cameraBuffer = heapState.Track(graphicsState.Device.CreateCommittedResource(HeapType.Upload,
+                ResourceDescription.Buffer(1024), ResourceStates.AllShaderResource), "Constant buffer: camerBuffer");
             graphicsState.Device.CreateConstantBufferView(new ConstantBufferViewDescription(cameraBuffer, 1024),
                 heapState.CbvUavSrvDescriptorHeap.Segments[HeapConfig.Segments.cbvs].NextCpuHandle());
 
             // This should be moved into a common heap and uploaded through upload heap
-            ID3D12Resource perFrameBuffer = graphicsState.Device.CreateCommittedResource(HeapType.Upload,
-                ResourceDescription.Buffer(1024), ResourceStates.AllShaderResource);
+            ID3D12Resource perFrameBuffer = heapState.Track(graphicsState.Device.CreateCommittedResource(HeapType.Upload,
+                ResourceDescription.Buffer(1024), ResourceStates.AllShaderResource), "Constant buffer: perFrameBuffer");
             graphicsState.Device.CreateConstantBufferView(new ConstantBufferViewDescription(perFrameBuffer, 1024),
                 heapState.CbvUavSrvDescriptorHeap.Segments[HeapConfig.Segments.cbvs].NextCpuHandle());
 
@@ -690,7 +695,12 @@ namespace Application
                 settings.Save();
             }
 
+            imGuiRenderer.ImGui_ImplDX12_Shutdown();
             SDL_Quit();
+
+            foreach (var disposable in disposables)
+                disposable.Dispose();
+            graphicsState.Dispose();
 
             return 0;
         }

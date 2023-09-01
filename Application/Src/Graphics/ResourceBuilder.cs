@@ -36,7 +36,8 @@ public class LinearResourceBuilder : IResourceBuilder
 
         var device = graphicsState.Device;
 
-        ID3D12Resource vertexBuffer = heapState.VertexHeap.AppendBuffer(device, verticesByteSize);
+        ID3D12Resource vertexBuffer = heapState.Track(heapState.VertexHeap.AppendBuffer(device, verticesByteSize));
+        vertexBuffer.Name = "Vertex Buffer: " + vertexData.Name;
         device.CreateShaderResourceView(vertexBuffer, new ShaderResourceViewDescription
         {
             Format = Format.Unknown,
@@ -52,7 +53,8 @@ public class LinearResourceBuilder : IResourceBuilder
         }, heapState.CbvUavSrvDescriptorHeap.Segments[HeapConfig.Segments.vertexBuffers].NextCpuHandle()
         );
 
-        ID3D12Resource indexBuffer = heapState.IndexHeap.AppendBuffer(device, indicesByteSize);
+        ID3D12Resource indexBuffer = heapState.Track(heapState.IndexHeap.AppendBuffer(device, indicesByteSize));
+        indexBuffer.Name = "Index Buffer " + vertexData.Name;
 
         List<VIBufferView> viBufferViews = new(vertexData.Submeshes.Length);
 
@@ -109,10 +111,11 @@ public class LinearResourceBuilder : IResourceBuilder
 
     public static Texture CreateTexture(GraphicsState graphicsState, HeapState heapState, TextureData textureData)
     {
-        ID3D12Resource resource = heapState.TextureHeap.AppendTexture2D(
+        ID3D12Resource resource = heapState.Track(heapState.TextureHeap.AppendTexture2D(
             graphicsState.Device
             , ResourceDescription.Texture2D(Utils.GetDXGIFormat(textureData.Channels, textureData.ChannelByteSize), (uint)textureData.Width, (uint)textureData.Height, 1, 1)
-        );
+        ));
+        resource.Name = "Texture: " + textureData.Name;
 
         int textureId = heapState.CbvUavSrvDescriptorHeap.Segments[HeapConfig.Segments.textures].Used;
         graphicsState.Device.CreateShaderResourceView(resource,
@@ -185,17 +188,22 @@ public class LinearResourceBuilder : IResourceBuilder
                 CachedPSO = default,
                 Flags = PipelineStateFlags.None
             });
+            pipelineState.Name = "GraphicsPipelineState: " + pso.VertexShader + " " + pso.PixelShader;
 
-            pso.ID3D12PipelineState.Release();
+            pso.ID3D12PipelineState.Dispose();
             pso.ID3D12PipelineState = pipelineState;
+
+            vertexShader.Dispose();
+            pixelShader.Dispose();
         }
     }
 
     public static Surface CreateSurface(Settings settings, GraphicsState graphicsState, HeapState heapState, Material material, Dictionary<string, Texture> textures)
     {
-        var vertexShader = Graphics.Utils.CompileVertexShader("vertex.hlsl").LogIfFailed().Value;
-
+        string vertexShaderPath = "vertex.hlsl";
         string pixelShaderPath = material.AlbedoTextureHasAlpha ? "pixel_alphamask.hlsl" : "pixel.hlsl";
+
+        var vertexShader = Graphics.Utils.CompileVertexShader(vertexShaderPath).LogIfFailed().Value;
         var pixelShader = Graphics.Utils.CompilePixelShader(pixelShaderPath).LogIfFailed().Value;
 
         var rasterizerDescription = new RasterizerDescription
@@ -239,6 +247,7 @@ public class LinearResourceBuilder : IResourceBuilder
             CachedPSO = default,
             Flags = PipelineStateFlags.None
         });
+        pipelineState.Name = "GraphicsPipelineState: " + vertexShaderPath + " " + pixelShaderPath;
 
         textures.TryGetValue(material.AlbedoTexture, out Texture? albedoTexture);
         Debug.Assert(albedoTexture != null);
@@ -249,17 +258,19 @@ public class LinearResourceBuilder : IResourceBuilder
         textures.TryGetValue(material.ORMTexture, out Texture? ormTexture);
         Debug.Assert(ormTexture != null);
 
-        PSO pso = new PSO
+        PSO pso = heapState.Track(new PSO
         {
-            VertexShader = "vertex.hlsl",
-            PixelShader = "pixel.hlsl",
+            VertexShader = vertexShaderPath,
+            PixelShader = pixelShaderPath,
             BackfaceCulling = !material.AlbedoTextureHasAlpha,
             ID = material.AlbedoTextureHasAlpha ? 1 : 0, // TODO :)
             RasterizerDescription = rasterizerDescription,
             ID3D12PipelineState = pipelineState,
-        };
+        });
 
         graphicsState.livePsos.Add(pso);
+        vertexShader.Dispose();
+        pixelShader.Dispose();
 
         return new Surface
         {
@@ -273,8 +284,11 @@ public class LinearResourceBuilder : IResourceBuilder
 
     public static Surface CreateBillboardSurface(Settings settings, GraphicsState graphicsState, HeapState heapState, Texture albedoTexture)
     {
-        var vertexShader = Graphics.Utils.CompileVertexShader("billboard.hlsl").LogIfFailed().Value;
-        var pixelShader = Graphics.Utils.CompilePixelShader("billboard.hlsl").LogIfFailed().Value;
+        string vertexShaderPath = "billboard.hlsl";
+        string pixelShaderPath = "billboard.hlsl";
+
+        var vertexShader = Graphics.Utils.CompileVertexShader(vertexShaderPath).LogIfFailed().Value;
+        var pixelShader = Graphics.Utils.CompilePixelShader(pixelShaderPath).LogIfFailed().Value;
 
         var rasterizerDescription = new RasterizerDescription
         {
@@ -317,18 +331,21 @@ public class LinearResourceBuilder : IResourceBuilder
             CachedPSO = default,
             Flags = PipelineStateFlags.None
         });
+        pipelineState.Name = "GraphicsPipelineState: " + vertexShaderPath + " " + pixelShaderPath;
 
-        PSO pso = new PSO
+        PSO pso = heapState.Track(new PSO
         {
-            VertexShader = "billboard.hlsl",
-            PixelShader = "billboard.hlsl",
+            VertexShader = vertexShaderPath,
+            PixelShader = pixelShaderPath,
             BackfaceCulling = true,
             ID = 2, // TODO :)
             RasterizerDescription = rasterizerDescription,
             ID3D12PipelineState = pipelineState,
-        };
+        });
 
         graphicsState.livePsos.Add(pso);
+        vertexShader.Dispose();
+        pixelShader.Dispose();
 
         return new Surface
         {
@@ -342,9 +359,10 @@ public class LinearResourceBuilder : IResourceBuilder
 
     public static Surface CreateBlinnPhongSurface(Settings settings, GraphicsState graphicsState, HeapState heapState, Material material, Dictionary<string, Texture> textures)
     {
-        var vertexShader = Graphics.Utils.CompileVertexShader("vertex.hlsl").LogIfFailed().Value;
-
+        string vertexShaderPath = "vertex.hlsl";
         string pixelShaderPath = "pixel_blinnphong.hlsl";
+
+        var vertexShader = Graphics.Utils.CompileVertexShader(vertexShaderPath).LogIfFailed().Value;
         var pixelShader = Graphics.Utils.CompilePixelShader(pixelShaderPath).LogIfFailed().Value;
 
         var rasterizerDescription = new RasterizerDescription
@@ -388,6 +406,7 @@ public class LinearResourceBuilder : IResourceBuilder
             CachedPSO = default,
             Flags = PipelineStateFlags.None
         });
+        pipelineState.Name = "GraphicsPipelineState: " + vertexShaderPath + " " + pixelShaderPath;
 
         textures.TryGetValue(material.AlbedoTexture, out Texture? albedoTexture);
         Debug.Assert(albedoTexture != null);
@@ -398,17 +417,19 @@ public class LinearResourceBuilder : IResourceBuilder
         textures.TryGetValue(material.ORMTexture, out Texture? ormTexture);
         Debug.Assert(ormTexture != null);
 
-        PSO pso = new PSO
+        PSO pso = heapState.Track(new PSO
         {
-            VertexShader = "vertex.hlsl",
-            PixelShader = "pixel_blinnphong.hlsl",
+            VertexShader = vertexShaderPath,
+            PixelShader = pixelShaderPath,
             BackfaceCulling = false,
             ID = 3, // TODO :)
             RasterizerDescription = rasterizerDescription,
             ID3D12PipelineState = pipelineState,
-        };
+        });
 
         graphicsState.livePsos.Add(pso);
+        vertexShader.Dispose();
+        pixelShader.Dispose();
 
         return new Surface
         {
@@ -422,8 +443,11 @@ public class LinearResourceBuilder : IResourceBuilder
 
     public static Surface CreateCubemapSurface(Settings settings, GraphicsState graphicsState, HeapState heapState, Texture texture)
     {
-        var vertexShader = Graphics.Utils.CompileVertexShader("cubemap.hlsl").LogIfFailed().Value;
-        var pixelShader = Graphics.Utils.CompilePixelShader("cubemap.hlsl").LogIfFailed().Value;
+        string vertexShaderPath = "cubemap.hlsl";
+        string pixelShaderPath = "cubemap.hlsl";
+
+        var vertexShader = Graphics.Utils.CompileVertexShader(vertexShaderPath).LogIfFailed().Value;
+        var pixelShader = Graphics.Utils.CompilePixelShader(pixelShaderPath).LogIfFailed().Value;
 
         var rasterizerDescription = new RasterizerDescription
         {
@@ -466,18 +490,21 @@ public class LinearResourceBuilder : IResourceBuilder
             CachedPSO = default,
             Flags = PipelineStateFlags.None
         });
+        pipelineState.Name = "GraphicsPipelineState: " + vertexShaderPath + " " + pixelShaderPath;
 
-        PSO pso = new PSO
+        PSO pso = heapState.Track(new PSO
         {
-            VertexShader = "cubemap.hlsl",
-            PixelShader = "cubemap.hlsl",
+            VertexShader = vertexShaderPath,
+            PixelShader = pixelShaderPath,
             BackfaceCulling = false,
             ID = 5, // TODO :)
             RasterizerDescription = rasterizerDescription,
             ID3D12PipelineState = pipelineState,
-        };
+        });
 
         graphicsState.livePsos.Add(pso);
+        vertexShader.Dispose();
+        pixelShader.Dispose();
 
         return new Surface
         {
@@ -491,8 +518,11 @@ public class LinearResourceBuilder : IResourceBuilder
 
     public static Surface CreateTerrainSurface(Settings settings, GraphicsState graphicsState, HeapState heapState)
     {
-        var vertexShader = Graphics.Utils.CompileVertexShader("terrain.hlsl").LogIfFailed().Value;
-        var pixelShader = Graphics.Utils.CompilePixelShader("terrain.hlsl").LogIfFailed().Value;
+        string vertexShaderPath = "terrain.hlsl";
+        string pixelShaderPath = "terrain.hlsl";
+
+        var vertexShader = Graphics.Utils.CompileVertexShader(vertexShaderPath).LogIfFailed().Value;
+        var pixelShader = Graphics.Utils.CompilePixelShader(pixelShaderPath).LogIfFailed().Value;
 
         RasterizerDescription rasterizerDecsription = new RasterizerDescription
         {
@@ -535,19 +565,20 @@ public class LinearResourceBuilder : IResourceBuilder
             CachedPSO = default,
             Flags = PipelineStateFlags.None
         });
+        pipelineState.Name = "GraphicsPipelineState: " + vertexShaderPath + " " + pixelShaderPath;
 
         return new Surface
         {
             ID = heapState.SurfaceCounter++,
-            PSO = new PSO
+            PSO = heapState.Track(new PSO
             {
-                VertexShader = "terrain.hlsl",
-                PixelShader = "terrain.hlsl",
+                VertexShader = vertexShaderPath,
+                PixelShader = pixelShaderPath,
                 BackfaceCulling = false,
                 ID = 4, // TODO :)
                 RasterizerDescription = rasterizerDecsription,
                 ID3D12PipelineState = pipelineState,
-            },
+            }),
             AlbedoTexture = new Texture { ID = -1, },
             NormalTexture = new Texture { ID = -1, },
             ORMTexture = new Texture { ID = -1, },
@@ -565,6 +596,7 @@ public class LinearResourceBuilder : IResourceBuilder
                     , DescriptorHeapFlags.ShaderVisible
                 )
             );
+            id3d12DescriptorHeap.Name = "CBV/SRV/UAV Heap";
 
             int handleSize = graphicsState.Device.GetDescriptorHandleIncrementSize(DescriptorHeapType.ConstantBufferViewShaderResourceViewUnorderedAccessView);
             cbvSrvUavHeap = new DescriptorHeap.Builder(id3d12DescriptorHeap, handleSize)
@@ -581,12 +613,14 @@ public class LinearResourceBuilder : IResourceBuilder
             graphicsState.Device.CreateHeap<ID3D12Heap>(
                 new HeapDescription(uploadHeapSize, HeapType.Upload)
             );
+        uploadHeap.Name = "Upload Heap";
         ID3D12Resource uploadBuffer = graphicsState.Device.CreatePlacedResource<ID3D12Resource>(
             uploadHeap
             , 0
             , ResourceDescription.Buffer(uploadHeapSize)
             , ResourceStates.Common
         );
+        uploadBuffer.Name = "Upload Buffer";
 
         const ulong vertexHeapSize = 1024 * 1024 * 1024;
         Heap vertexHeap = Heap.New(
@@ -595,6 +629,7 @@ public class LinearResourceBuilder : IResourceBuilder
             )
             , vertexHeapSize
         );
+        vertexHeap.ID3D12Heap.Name = "Vertex Heap";
 
         const ulong indexHeapSize = 512 * 1024 * 1024;
         Heap indexHeap = Heap.New(
@@ -603,6 +638,7 @@ public class LinearResourceBuilder : IResourceBuilder
             )
             , indexHeapSize
         );
+        indexHeap.ID3D12Heap.Name = "Index Heap";
 
         const ulong textureHeapSize = 2048L * 1024 * 1024;
         Heap textureHeap = Heap.New(
@@ -611,6 +647,7 @@ public class LinearResourceBuilder : IResourceBuilder
             )
             , textureHeapSize
         );
+        textureHeap.ID3D12Heap.Name = "Texture Heap";
 
         Heap instanceDataHeap;
         ID3D12Resource instanceDataBuffer;
@@ -622,12 +659,14 @@ public class LinearResourceBuilder : IResourceBuilder
                 )
                 , instanceDataHeapSize
             );
+            instanceDataHeap.ID3D12Heap.Name = "Instance Data Heap";
 
             instanceDataBuffer = graphicsState.Device.CreatePlacedResource<ID3D12Resource>(
                 instanceDataHeap.ID3D12Heap,
                 0,
                 ResourceDescription.Buffer(instanceDataHeapSize),
                 ResourceStates.AllShaderResource);
+            instanceDataBuffer.Name = "Instance Data Buffer";
 
             graphicsState.Device.CreateShaderResourceView(instanceDataBuffer,
                 new ShaderResourceViewDescription
@@ -655,12 +694,14 @@ public class LinearResourceBuilder : IResourceBuilder
                 )
                 , perDrawConstantBufferHeapSize
             );
+            perDrawConstantBufferHeap.ID3D12Heap.Name = "Per Draw Constant Buffer Heap";
 
             perDrawBuffer = graphicsState.Device.CreatePlacedResource<ID3D12Resource>(
                 perDrawConstantBufferHeap.ID3D12Heap,
                 0,
                 ResourceDescription.Buffer(perDrawConstantBufferHeapSize),
                 ResourceStates.VertexAndConstantBuffer);
+            perDrawBuffer.Name = "Per Draw Constant Buffer";
 
             /*graphicsState.device.CreateShaderResourceView(perDrawBuffer,
                 new ShaderResourceViewDescription
@@ -688,6 +729,7 @@ public class LinearResourceBuilder : IResourceBuilder
                     , DescriptorHeapFlags.None
                 )
             );
+            id3d12DescriptorHeap.Name = "RTV Heap";
 
             int handleSize = graphicsState.Device.GetDescriptorHandleIncrementSize(DescriptorHeapType.RenderTargetView);
             rtvHeap = new DescriptorHeap.Builder(id3d12DescriptorHeap, handleSize)

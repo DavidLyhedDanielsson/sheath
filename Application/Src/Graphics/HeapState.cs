@@ -1,9 +1,11 @@
 using System.Diagnostics;
+using System.Dynamic;
+using SharpGen.Runtime;
 using Vortice.Direct3D12;
 
 namespace Application.Graphics;
 
-public class Heap
+public class Heap : IDisposable
 {
     public required ID3D12Heap ID3D12Heap { get; init; }
     public required ulong Size { get; init; }
@@ -13,6 +15,11 @@ public class Heap
     public static Heap New(ID3D12Heap heap, ulong size)
     {
         return new Heap { ID3D12Heap = heap, Size = size, Used = 0, PaddedSpace = 0 };
+    }
+
+    public void Dispose()
+    {
+        ID3D12Heap.Dispose();
     }
 
     public ID3D12Resource AppendBuffer(
@@ -27,6 +34,7 @@ public class Heap
             , ResourceDescription.Buffer(size)
             , initialState
         );
+        resource.Name = "Heap.AppendBuffer";
 
         ulong alignment = D3D12.DefaultResourcePlacementAlignment;
         ulong alignedSize = (size + alignment - 1) / alignment * alignment;
@@ -83,7 +91,7 @@ public class DescriptorHeapSegment
     }
 }
 
-public class DescriptorHeap
+public class DescriptorHeap : IDisposable
 {
     public required ID3D12DescriptorHeap ID3D12DescriptorHeap { get; init; }
     public required int Size { get; init; }
@@ -124,9 +132,14 @@ public class DescriptorHeap
             };
         }
     }
+
+    public void Dispose()
+    {
+        ID3D12DescriptorHeap.Dispose();
+    }
 }
 
-public class HeapState
+public class HeapState : IDisposable
 {
     public required LinearUploader UploadBuffer { get; init; } // TODO: Not a fan of this name
     public required Heap UploadHeap { get; init; }
@@ -143,4 +156,36 @@ public class HeapState
     public required ID3D12Resource PerDrawBuffer { get; init; }
 
     public int SurfaceCounter { get; set; }
+
+    public HashSet<IDisposable> disposables { get; } = new();
+
+    public void Dispose()
+    {
+        UploadBuffer.Dispose();
+        UploadHeap.Dispose();
+        VertexHeap.Dispose();
+        IndexHeap.Dispose();
+        TextureHeap.Dispose();
+        CbvUavSrvDescriptorHeap.Dispose();
+        RtvDescriptorHeap.Dispose();
+        InstanceDataHeap.Dispose();
+        InstanceDataBuffer.Dispose();
+        PerDrawConstantBufferHeap.Dispose();
+        PerDrawBuffer.Dispose();
+
+        foreach (var disposable in disposables)
+            disposable.Dispose();
+    }
+
+    public T Track<T>(T disposable) where T : IDisposable
+    {
+        disposables.Add(disposable);
+        return disposable;
+    }
+
+    public T Track<T>(T disposable, string name) where T : ID3D12Object
+    {
+        disposable.Name = name;
+        return Track(disposable);
+    }
 }

@@ -6,7 +6,7 @@ using Vortice.DXGI;
 
 namespace Application.Graphics;
 
-public class GraphicsState
+public class GraphicsState : IDisposable
 {
 #pragma warning disable CS8618 // Non-nullable field must contain a non-null value when exiting constructor. Consider declaring as nullable.
     public ID3D12Device Device { get; private set; }
@@ -18,7 +18,6 @@ public class GraphicsState
     public ID3D12DescriptorHeap DsvDescriptorHeap { get; private set; }
     public ID3D12Resource[] RenderTargets { get; private set; }
     public ID3D12Resource DepthBuffer { get; private set; }
-    public ID3D12Resource DepthStencilView { get; private set; }
     public IDXGISwapChain SwapChain { get; private set; }
 
     private ID3D12Fence _fence;
@@ -31,9 +30,45 @@ public class GraphicsState
     public ulong frameCount = 0;
 
     public int RtvDescriptorSize { get; private set; }
-    public int DsvDescriptorSize{ get; private set; }
+    public int DsvDescriptorSize { get; private set; }
 
     public List<PSO> livePsos = new();
+
+    public void Dispose()
+    {
+        WaitUntilIdle();
+
+        CommandQueue.Dispose();
+        CommandAllocator.Dispose();
+        CommandList.Dispose();
+        RootSignature.Dispose();
+        RtvDescriptorHeap.Dispose();
+        DsvDescriptorHeap.Dispose();
+        foreach (var renderTarget in RenderTargets)
+            renderTarget.Dispose();
+        DepthBuffer.Dispose();
+        SwapChain.Dispose();
+
+        _fence.Dispose();
+        _fenceEvent.Dispose();
+        _frameFence.Dispose();
+        _frameFenceEvent.Dispose();
+
+        foreach (var pso in livePsos)
+            pso.Dispose();
+        livePsos.Clear();
+
+        var debugDevice = Device.QueryInterface<ID3D12DebugDevice>();
+        Device.Dispose();
+
+        if (debugDevice != null)
+        {
+            debugDevice!.ReportLiveDeviceObjects(ReportLiveDeviceObjectFlags.Detail | ReportLiveDeviceObjectFlags.IgnoreInternal);
+            debugDevice!.Dispose();
+        }
+    }
+
+
 #pragma warning restore CS8618 // Non-nullable field must contain a non-null value when exiting constructor. Consider declaring as nullable.
 
     private static void DebugCallback(MessageCategory category, MessageSeverity severity, MessageId id, string description)
@@ -68,15 +103,22 @@ public class GraphicsState
             if (device == null)
                 return Result.Fail("Couldn't create device");
             state.Device = device;
+            state.Device.Name = "Device";
         }
 
         ID3D12InfoQueue1 infoQueue = state.Device.QueryInterface<ID3D12InfoQueue1>();
         if (infoQueue != null)
+        {
             infoQueue!.RegisterMessageCallback(DebugCallback);
+            infoQueue.Dispose();
+        }
 
         state.CommandQueue = state.Device.CreateCommandQueue(new CommandQueueDescription(CommandListType.Direct, CommandQueuePriority.Normal));
+        state.CommandQueue.Name = "CommandQueue";
         state.CommandAllocator = state.Device.CreateCommandAllocator(CommandListType.Direct);
+        state.CommandAllocator.Name = "CommandAllocator";
         state.CommandList = state.Device.CreateCommandList<ID3D12GraphicsCommandList>(CommandListType.Direct, state.CommandAllocator);
+        state.CommandList.Name = "CommandList";
 
         state.SwapChain = factory.CreateSwapChainForHwnd(state.CommandQueue, hRef, new SwapChainDescription1
         {
@@ -96,18 +138,22 @@ public class GraphicsState
             AlphaMode = AlphaMode.Unspecified,
             Flags = SwapChainFlags.None
         });
+        state.SwapChain.DebugName = "SwapChain";
 
         state.RtvDescriptorSize = state.Device.GetDescriptorHandleIncrementSize(DescriptorHeapType.RenderTargetView);
         state.RtvDescriptorHeap = state.Device.CreateDescriptorHeap(new(DescriptorHeapType.RenderTargetView, settings.Graphics.BackBufferCount, DescriptorHeapFlags.None));
+        state.RtvDescriptorHeap.Name = "RtvDescriptorHeap";
 
         for (int i = 0; i < settings.Graphics.BackBufferCount; ++i)
         {
             state.RenderTargets[i] = state.SwapChain.GetBuffer<ID3D12Resource>(i);
+            state.RenderTargets[i].Name = $"RenderTarget{i}";
             state.Device.CreateRenderTargetView(state.RenderTargets[i], null, state.RtvDescriptorHeap.GetCPUDescriptorHandleForHeapStart() + i * state.RtvDescriptorSize);
         }
 
         state.DsvDescriptorSize = state.Device.GetDescriptorHandleIncrementSize(DescriptorHeapType.DepthStencilView);
         state.DsvDescriptorHeap = state.Device.CreateDescriptorHeap(new(DescriptorHeapType.DepthStencilView, 1, DescriptorHeapFlags.None));
+        state.DsvDescriptorHeap.Name = "DsvDescriptorHeap";
 
         state.DepthBuffer = state.Device.CreateCommittedResource(
             HeapType.Default,
@@ -130,6 +176,7 @@ public class GraphicsState
                     Stencil = 0
                 }
             });
+        state.DepthBuffer.Name = "DepthBuffer";
         state.Device.CreateDepthStencilView(state.DepthBuffer, new DepthStencilViewDescription
         {
             Format = settings.Graphics.DepthStencilFormat,
@@ -183,16 +230,20 @@ public class GraphicsState
             if (rootSignature == null)
                 return Result.Fail("Couldn't create root signature");
             state.RootSignature = rootSignature;
+            state.RootSignature.Name = "RootSignature";
         }
 
         state._frameFence = state.Device.CreateFence();
+        state._frameFence.Name = "FrameFence";
         state._frameFenceEvent = new AutoResetEvent(false);
 
         state._fence = state.Device.CreateFence();
+        state._fence.Name = "Fence";
         state._fenceEvent = new AutoResetEvent(false);
 
         state.livePsos = new List<PSO>();
 
+        factory.Dispose();
         return Result.Ok(state);
     }
 

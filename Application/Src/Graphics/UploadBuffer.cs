@@ -36,7 +36,7 @@ class TextureUploadTask : UploadTask
     }
 }
 
-public class LinearUploader
+public class LinearUploader : IDisposable
 {
     private readonly ID3D12Resource _uploadBuffer;
     private readonly ulong _uploadBufferSize;
@@ -49,6 +49,12 @@ public class LinearUploader
         _uploadBufferSize = uploadBufferSize;
         _currentOffset = 0;
         _uploadTasks = new();
+    }
+
+    public void Dispose()
+    {
+        _uploadBuffer.Dispose();
+        _uploadTasks.Clear();
     }
 
     private unsafe ulong DoBufferUpload(ID3D12GraphicsCommandList commandList, ID3D12Resource targetResource, ulong targetOffset, void* data, ulong dataLength)

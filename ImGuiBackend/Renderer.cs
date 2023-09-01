@@ -10,14 +10,14 @@ using System.Diagnostics;
 
 namespace ImGuiBackend
 {
-    internal struct ImGui_ImplDX12_RenderBuffers
+    internal class ImGui_ImplDX12_RenderBuffers
     {
         internal ID3D12Resource? IndexBuffer;
         internal ID3D12Resource? VertexBuffer;
         internal int IndexBufferSize;
         internal int VertexBufferSize;
     };
-    internal struct ImGui_ImplDX12_Data
+    internal class ImGui_ImplDX12_Data
     {
         internal ID3D12Device pd3dDevice;
         internal ID3D12RootSignature pRootSignature;
@@ -125,7 +125,7 @@ namespace ImGuiBackend
             // Create and grow vertex/index buffers if needed
             if (fr.VertexBuffer == null || fr.VertexBufferSize < draw_data.TotalVtxCount)
             {
-                fr.VertexBuffer?.Release();
+                fr.VertexBuffer?.Dispose();
                 fr.VertexBufferSize = draw_data.TotalVtxCount + 5000;
                 HeapProperties props = new()
                 {
@@ -150,10 +150,11 @@ namespace ImGuiBackend
                     Flags = ResourceFlags.None
                 };
                 fr.VertexBuffer = bd.pd3dDevice.CreateCommittedResource(props, HeapFlags.None, desc, ResourceStates.GenericRead, null);
+                fr.VertexBuffer.Name = "ImGui Vertex Buffer";
             }
             if (fr.IndexBuffer == null || fr.IndexBufferSize < draw_data.TotalIdxCount)
             {
-                fr.IndexBuffer?.Release();
+                fr.IndexBuffer?.Dispose();
                 fr.IndexBufferSize = draw_data.TotalIdxCount + 10000;
                 HeapProperties props = new()
                 {
@@ -178,6 +179,7 @@ namespace ImGuiBackend
                     Flags = ResourceFlags.None,
                 };
                 fr.IndexBuffer = bd.pd3dDevice.CreateCommittedResource(props, HeapFlags.None, desc, ResourceStates.GenericRead, null);
+                fr.IndexBuffer.Name = "ImGui Index Buffer";
             }
 
             // Upload vertex/index data into a single contiguous GPU buffer
@@ -300,6 +302,7 @@ namespace ImGuiBackend
                     };
 
                     ID3D12Resource pTexture = bd.pd3dDevice.CreateCommittedResource(props, HeapFlags.None, desc, ResourceStates.CopyDest, null);
+                    pTexture.Name = "ImGui Font Texture";
 
                     ulong uploadPitch = (ulong)((width * 4 + D3D12.TextureDataPitchAlignment - 1u) & ~(D3D12.TextureDataPitchAlignment - 1u));
                     ulong uploadSize = (ulong)height * uploadPitch;
@@ -321,6 +324,7 @@ namespace ImGuiBackend
 
                     //ID3D12Resource* uploadBuffer = nullptr;
                     ID3D12Resource uploadBuffer = bd.pd3dDevice.CreateCommittedResource(props, HeapFlags.None, desc, ResourceStates.GenericRead, null);
+                    uploadBuffer.Name = "ImGui Font Upload Buffer";
 
                     byte* mapped = null; // Was uintptr_t, is byte* interchangeable?
                     Range range = new() { Begin = 0, End = new SharpGen.Runtime.PointerSize((long)uploadSize) };
@@ -347,6 +351,7 @@ namespace ImGuiBackend
                     ResourceBarrier barrier = ResourceBarrier.BarrierTransition(pTexture, ResourceStates.CopyDest, ResourceStates.PixelShaderResource, -1); // -1 = ALL_SUBRESOURCES?
 
                     ID3D12Fence fence = bd.pd3dDevice.CreateFence(0, FenceFlags.None);
+                    fence.Name = "ImGui Fence";
 
                     // Can't be named `event`
                     AutoResetEvent ev = new(false);
@@ -359,12 +364,15 @@ namespace ImGuiBackend
                     };
 
                     ID3D12CommandQueue cmdQueue = bd.pd3dDevice.CreateCommandQueue(queueDesc);
+                    cmdQueue.Name = "ImGui Command Queue";
                     //IM_ASSERT(SUCCEEDED(hr));
 
                     ID3D12CommandAllocator cmdAlloc = bd.pd3dDevice.CreateCommandAllocator(CommandListType.Direct);
+                    cmdAlloc.Name = "ImGui Command Allocator";
                     //IM_ASSERT(SUCCEEDED(hr));
 
                     ID3D12GraphicsCommandList cmdList = bd.pd3dDevice.CreateCommandList<ID3D12GraphicsCommandList>(CommandListType.Direct, cmdAlloc);
+                    cmdList.Name = "ImGui Command List";
                     //IM_ASSERT(SUCCEEDED(hr));
 
                     cmdList.CopyTextureRegion(dstLocation, 0, 0, 0, srcLocation, null);
@@ -380,13 +388,13 @@ namespace ImGuiBackend
                     fence.SetEventOnCompletion(1, ev);
                     ev.WaitOne(Timeout.Infinite);
 
-                    cmdList.Release();
-                    cmdAlloc.Release();
-                    cmdQueue.Release();
+                    cmdList.Dispose();
+                    cmdAlloc.Dispose();
+                    cmdQueue.Dispose();
                     ev.Close();
                     //CloseHandle(event);
-                    fence.Release();
-                    uploadBuffer.Release();
+                    fence.Dispose();
+                    uploadBuffer.Dispose();
 
                     // Create texture view
                     ShaderResourceViewDescription srvDesc = new()
@@ -401,7 +409,7 @@ namespace ImGuiBackend
                         Shader4ComponentMapping = ShaderComponentMapping.Default,
                     };
                     bd.pd3dDevice.CreateShaderResourceView(pTexture, srvDesc, bd.hFontSrvCpuDescHandle);
-                    bd.pFontTextureResource?.Release();
+                    bd.pFontTextureResource?.Dispose();
                     bd.pFontTextureResource = pTexture;
                 }
 
@@ -500,7 +508,8 @@ namespace ImGuiBackend
                 //return false;
 
                 bd.pRootSignature = bd.pd3dDevice.CreateRootSignature<ID3D12RootSignature>(0, blob);
-                blob.Release();
+                bd.pRootSignature.Name = "ImGui Root Signature";
+                blob.Dispose();
             }
 
             // By using D3DCompile() from <d3dcompiler.h> / d3dcompiler.lib, we introduce a dependency to a given version of d3dcompiler_XX.dll (see D3DCOMPILER_DLL_A)
@@ -659,6 +668,7 @@ float4 main(PS_INPUT input) : SV_Target
             };
 
             bd.pPipelineState = bd.pd3dDevice.CreateGraphicsPipelineState(psoDesc);
+            bd.pPipelineState.Name = "ImGui Pipeline State";
             //vertexShaderBlob.Release();
             //pixelShaderBlob.Release();
             //if (result_pipeline_state != S_OK)
@@ -678,16 +688,16 @@ float4 main(PS_INPUT input) : SV_Target
             //return;
 
             ImGuiIOPtr io = ImGui.GetIO();
-            bd.pRootSignature?.Release();
-            bd.pPipelineState?.Release();
-            bd.pFontTextureResource?.Release();
+            bd.pRootSignature?.Dispose();
+            bd.pPipelineState?.Dispose();
+            bd.pFontTextureResource?.Dispose();
             io.Fonts.SetTexID(IntPtr.Zero); // We copied bd.pFontTextureView to io.Fonts.TexID so let's clear that as well.
 
             for (uint i = 0; i < bd.numFramesInFlight; i++)
             {
                 ImGui_ImplDX12_RenderBuffers fr = bd.FrameResources[i];
-                fr.IndexBuffer?.Release();
-                fr.VertexBuffer?.Release();
+                fr.IndexBuffer?.Dispose();
+                fr.VertexBuffer?.Dispose();
             }
         }
 
